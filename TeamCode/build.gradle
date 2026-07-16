@@ -24,6 +24,6 @@ android {
 }
 
 dependencies {
-    implementation project(':PedroPathing')
+    implementation project(':PedroPathing:ftc')
     implementation project(':FtcRobotController')
 }

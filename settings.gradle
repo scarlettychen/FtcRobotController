@@ -1,8 +1,25 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = "https://maven.pedropathing.com/" }
+    }
+}
+
 include ':FtcRobotController'
 include ':TeamCode'
 
-include(":PedroPathing:core")
-include(":PedroPathing:ftc")
+include ':PedroPathing:core'
+include ':PedroPathing:ftc'
 
-project(":PedroPathing:core").projectDir = file("TeamCode/lib/PedroPathing/core")
-project(":PedroPathing:ftc").projectDir = file("TeamCode/lib/PedroPathing/ftc")
+project(':PedroPathing:core').projectDir = file('TeamCode/lib/PedroPathing/core')
+project(':PedroPathing:ftc').projectDir = file('TeamCode/lib/PedroPathing/ftc')

@@ -1,0 +1,22 @@
+apply plugin: 'com.android.library'
+
+android {
+    namespace = 'com.pedropathing.ftc'
+    compileSdk 35
+
+    defaultConfig {
+        minSdk 24
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    api project(':PedroPathing:core')
+
+    implementation 'org.firstinspires.ftc:RobotCore:11.2.0'
+    implementation 'org.firstinspires.ftc:Hardware:11.2.0'
+}
