@@ -38,7 +38,7 @@ public class PredictiveTrajectoryFollower {
 
     private TrajectoryState lastSetpoint;
     private TrajectoryState lastClosest;
-    private double maxCrossPower = 0.55;
+    private double maxCrossPower = 0.35;
 
     public PredictiveTrajectoryFollower(PoseTracker poseTracker, Drivetrain drivetrain, MotionModel model) {
         this.poseTracker = poseTracker;
@@ -129,30 +129,22 @@ public class PredictiveTrajectoryFollower {
         double eCross = -ex * sin + ey * cos;
         double eTheta = MathFunctions.normalizeAngleSigned(timeSetpoint.heading - pose.getHeading());
 
-        double eSchedule = timeSetpoint.s - closest.s;
+        // Lag only when behind. Cutting a Bezier chord leaves you "ahead" of s*(t) —
+        // do NOT zero the motion command in that case (old behavior crawled on tiny FF).
+        double eLag = Math.max(0, timeSetpoint.s - closest.s);
 
         double vRef = timeSetpoint.velocity;
         double aRef = timeSetpoint.acceleration;
         double omegaRef = timeSetpoint.angularVelocity;
         double alphaRef = timeSetpoint.angularAcceleration;
 
-        if (eSchedule < 0) {
-            TrajectoryState atProgress = trajectory.sampleByDistance(closest.s);
-            vRef = Math.min(vRef, atProgress.velocity);
-            aRef = atProgress.acceleration;
-            eSchedule = 0;
-        }
-
         double vMeasAlong = velocity.getXComponent() * cos + velocity.getYComponent() * sin;
         double omegaMeas = poseTracker.getAngularVelocity();
 
+        // RobotModel FF should carry cruise speed; lag FB only fills when behind schedule.
         double ffDrive = model.feedforwardPower(vRef, aRef);
-        double fbDrive = kP * eSchedule + kD * (vRef - vMeasAlong);
-        double driveMag = clamp(ffDrive + fbDrive, -1.0, 1.0);
-        // Never reverse during the profile.
-        if (driveMag < 0) {
-            driveMag = 0;
-        }
+        double fbDrive = kP * eLag + kD * (vRef - vMeasAlong);
+        double driveMag = clamp(ffDrive + fbDrive, 0.0, 1.0);
 
         double ffHeading = kVOmega * omegaRef + kAAlpha * alphaRef;
         double fbHeading = kPHeading * eTheta + kDHeading * (omegaRef - omegaMeas);
@@ -163,8 +155,9 @@ public class PredictiveTrajectoryFollower {
         double remainingS = trajectory.getTotalLength() - timeSetpoint.s;
         if (endPosErr > 4.0) {
             headingMag = clamp(headingMag, -0.35, 0.35);
-            if (driveMag >= 0 && driveMag < 0.25 && (eSchedule > 1.0 || remainingS > 2.0)) {
-                driveMag = 0.25;
+            // Keep moving if FF/FB somehow dropped while path remains.
+            if (driveMag < 0.2 && remainingS > 2.0 && vRef > 1.0) {
+                driveMag = Math.max(driveMag, 0.2);
             }
         }
         if (Double.isNaN(driveMag)) driveMag = 0;

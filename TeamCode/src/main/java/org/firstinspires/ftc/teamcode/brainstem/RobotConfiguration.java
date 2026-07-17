@@ -62,14 +62,14 @@ public class RobotConfiguration {
                 .maxDeceleration(100.0)
                 .maxAngularVelocity(6.0)
                 .maxAngularAcceleration(20.0)
-                .feedforward(0.05, 0.012, 0.002);
+                .feedforward(0.05, 0.15, 0.003);
     }
 
     /** Team-editable feedback gains layered on top of RobotModel feedforward. */
     public void configurePredictiveFollower(Follower follower) {
         PredictiveTrajectoryFollower predictive = follower.getTrajectoryFollower();
-        // Slightly stronger cross-track so Bezier bulge is tracked, not only chord-cut.
-        predictive.setGains(0.1, 0.015, 0.14, 0.8, 0.05);
+        // Cross-track modest so it doesn't steal pathing power from Mecanum.calculateDrive.
+        predictive.setGains(0.1, 0.015, 0.08, 0.8, 0.05);
         predictive.kVOmega = 0.12;
         predictive.kAAlpha = 0.02;
     }
