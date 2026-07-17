@@ -19,7 +19,7 @@ import java.util.List;
  * Destinations / control points are absolute field coordinates.
  *
  * <p>Phase A: time-optimal profiles are on by default; {@link Marker}s fire mid-path
- * by path completion. Motion speed still follows {@code follower.robotModel} mode/confidence.
+ * by path completion. Motion speed follows the TeamCode-owned motion model.
  */
 public class PedroDrive {
     private final Follower follower;
@@ -101,10 +101,28 @@ public class PedroDrive {
 
     /**
      * Straight Bezier line to a TeamCode-style pose array {@code {x, y, headingDegrees}}.
-     * Converted once via {@link AlliancePoses#toPose}.
+     * Converted once via {@link AlliancePoses#toPose}. End heading is applied.
      */
     public AutoCommand lineDrive(double[] pose, Marker... markers) {
         return new LineDriveCommand(this, AlliancePoses.toPose(pose), true, markers);
+    }
+
+    /**
+     * Drive {@code inches} forward along the robot's <em>current</em> Pedro heading.
+     * Bakes from live pose at {@code initialize()} — use this for smoke tests so FTC
+     * 90° heading vs Pinpoint 0° cannot turn "forward" into a strafe path.
+     */
+    public AutoCommand forwardDrive(double inches, Marker... markers) {
+        return new ForwardDriveCommand(this, inches, markers);
+    }
+
+    /**
+     * Curved Bezier ~{@code inches} forward along current heading, bulging
+     * {@code sideOffsetInches} to the robot's left (negative = right).
+     * Baked from live pose at {@code initialize()}.
+     */
+    public AutoCommand bezierForwardDrive(double inches, double sideOffsetInches, Marker... markers) {
+        return new BezierForwardDriveCommand(this, inches, sideOffsetInches, markers);
     }
 
     /**
@@ -192,8 +210,10 @@ public class PedroDrive {
     void startBezier(List<Pose> absolutePoses, boolean setHeading, double endHeadingRadiansPedro) {
         Pose start = follower.getPose();
         List<Pose> controls = new ArrayList<>();
-        controls.add(start);
-        controls.addAll(absolutePoses);
+        controls.add(start.copy());
+        for (Pose p : absolutePoses) {
+            controls.add(p.copy());
+        }
 
         Path path;
         if (controls.size() == 2) {
@@ -202,12 +222,11 @@ public class PedroDrive {
             path = new Path(new BezierCurve(controls));
         }
 
-        Pose end = controls.get(controls.size() - 1);
         if (setHeading) {
             path.setLinearHeadingInterpolation(start.getHeading(), endHeadingRadiansPedro);
-        } else if (!Double.isNaN(end.getHeading()) && end.getHeading() != 0) {
-            path.setLinearHeadingInterpolation(start.getHeading(), end.getHeading());
         } else {
+            // Always hold start heading when not explicitly rotating.
+            // (Previously end.heading != 0 triggered linear interp; default Path heading is tangent.)
             path.setConstantHeadingInterpolation(start.getHeading());
         }
         follow(path);
@@ -241,10 +260,14 @@ public class PedroDrive {
     }
 
     private void follow(Path path) {
+        follow(path, useTimeOptimal);
+    }
+
+    private void follow(Path path, boolean timeOptimal) {
         PathChain chain = follower.pathBuilder()
                 .addPath(path)
                 .build();
-        if (useTimeOptimal) {
+        if (timeOptimal) {
             follower.followPathChainTimeOptimal(chain);
         } else {
             follower.followPath(chain, holdEnd);
@@ -297,6 +320,69 @@ public class PedroDrive {
         @Override
         public void initialize() {
             drive.startLine(end, setHeading);
+        }
+    }
+
+    private static final class ForwardDriveCommand extends FollowDriveCommand {
+        private final double inches;
+
+        ForwardDriveCommand(PedroDrive drive, double inches, Marker... markers) {
+            super(drive, markers);
+            this.inches = inches;
+        }
+
+        @Override
+        public void initialize() {
+            Pose start = drive.follower.getPose();
+            double h = start.getHeading();
+            Pose end = new Pose(
+                    start.getX() + inches * Math.cos(h),
+                    start.getY() + inches * Math.sin(h),
+                    h
+            );
+            drive.startLine(end, false);
+        }
+    }
+
+    private static final class BezierForwardDriveCommand extends FollowDriveCommand {
+        private final double inches;
+        private final double sideOffsetInches;
+
+        BezierForwardDriveCommand(
+                PedroDrive drive, double inches, double sideOffsetInches, Marker... markers) {
+            super(drive, markers);
+            this.inches = inches;
+            this.sideOffsetInches = sideOffsetInches;
+        }
+
+        @Override
+        public void initialize() {
+            Pose start = drive.follower.getPose();
+            double h = start.getHeading();
+            double fx = Math.cos(h);
+            double fy = Math.sin(h);
+            // Robot-left unit vector in Pedro frame.
+            double lx = -Math.sin(h);
+            double ly = Math.cos(h);
+
+            // Gentle cubic Bezier: both controls share the same side offset so the curve
+            // is a smooth bow (start/end tangents stay mostly forward).
+            Pose c1 = new Pose(
+                    start.getX() + (1.0 / 3.0) * inches * fx + sideOffsetInches * lx,
+                    start.getY() + (1.0 / 3.0) * inches * fy + sideOffsetInches * ly,
+                    h
+            );
+            Pose c2 = new Pose(
+                    start.getX() + (2.0 / 3.0) * inches * fx + sideOffsetInches * lx,
+                    start.getY() + (2.0 / 3.0) * inches * fy + sideOffsetInches * ly,
+                    h
+            );
+            Pose end = new Pose(
+                    start.getX() + inches * fx,
+                    start.getY() + inches * fy,
+                    h
+            );
+            drive.startBezier(Arrays.asList(c1, c2, end), false, Double.NaN);
         }
     }
 

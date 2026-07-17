@@ -1,6 +1,6 @@
 package com.pedropathing.trajectory;
 
-import com.pedropathing.model.RobotModel;
+import com.pedropathing.model.MotionModel;
 import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathChain;
 
@@ -13,24 +13,24 @@ import java.util.List;
  * Complexity O(N) — run at path build time, not every loop.
  */
 public class TimeOptimalTrajectoryGenerator {
-    private final RobotModel model;
+    private final MotionModel model;
     private final PathAnalyzer analyzer;
     private boolean stopAtEnd = true;
 
-    public TimeOptimalTrajectoryGenerator(RobotModel model) {
+    public TimeOptimalTrajectoryGenerator(MotionModel model) {
         this(model, new PathAnalyzer(0.75));
     }
 
-    public TimeOptimalTrajectoryGenerator(RobotModel model, PathAnalyzer analyzer) {
+    public TimeOptimalTrajectoryGenerator(MotionModel model, PathAnalyzer analyzer) {
         this.model = model;
         this.analyzer = analyzer;
     }
 
-    public static Trajectory generate(Path path, RobotModel model) {
+    public static Trajectory generate(Path path, MotionModel model) {
         return new TimeOptimalTrajectoryGenerator(model).generate(path);
     }
 
-    public static Trajectory generate(PathChain chain, RobotModel model) {
+    public static Trajectory generate(PathChain chain, MotionModel model) {
         return new TimeOptimalTrajectoryGenerator(model).generate(chain);
     }
 
@@ -58,7 +58,7 @@ public class TimeOptimalTrajectoryGenerator {
             SampledPathPoint last = samples.get(n - 1);
             double v = model.motorLimitedVelocity();
             if (Math.abs(last.curvature) > 1e-6) {
-                v = Math.min(v, Math.sqrt(model.maxLateralAcceleration / Math.abs(last.curvature)));
+                v = Math.min(v, Math.sqrt(model.getMaxLateralAcceleration() / Math.abs(last.curvature)));
             }
             vMax[n - 1] = Math.max(v, 1e-3);
         }
@@ -83,9 +83,9 @@ public class TimeOptimalTrajectoryGenerator {
             double dtEst = ds / Math.max(0.5 * (v[i] + v[i + 1]), 1e-3);
             if (dtEst > 1e-6) {
                 double alphaNeeded = Math.abs(omega1Candidate - omega0) / dtEst;
-                if (alphaNeeded > model.maxAngularAcceleration
+                if (alphaNeeded > model.getMaxAngularAcceleration()
                         && Math.abs(samples.get(i + 1).headingRate) > 1e-6) {
-                    double maxOmega = Math.abs(omega0) + model.maxAngularAcceleration * dtEst;
+                    double maxOmega = Math.abs(omega0) + model.getMaxAngularAcceleration() * dtEst;
                     v[i + 1] = Math.min(
                             v[i + 1], maxOmega / Math.abs(samples.get(i + 1).headingRate));
                 }
@@ -108,18 +108,19 @@ public class TimeOptimalTrajectoryGenerator {
         TrajectoryState[] states = new TrajectoryState[n];
         double time = 0;
         for (int i = 0; i < n; i++) {
-            double accel;
-            double omega = samples.get(i).headingRate * v[i];
-            if (Math.abs(samples.get(i).headingRate) < 1e-6
-                    && Math.abs(samples.get(i).curvature) > 1e-6) {
-                omega = samples.get(i).curvature * v[i];
-            }
+            SampledPathPoint p = samples.get(i);
 
+            // omega follows heading interpolation only. Do NOT use curvature*v:
+            // that made constant-heading Bezier paths spin then unspin (κ changes sign)
+            // while straight forwardDrive (κ≈0) looked fine.
+            double omega = p.headingRate * v[i];
+
+            double accel;
             if (i < n - 1) {
-                double ds = samples.get(i + 1).s - samples.get(i).s;
+                double ds = samples.get(i + 1).s - p.s;
                 accel = (v[i + 1] * v[i + 1] - v[i] * v[i]) / (2.0 * Math.max(ds, 1e-9));
             } else if (i > 0) {
-                double ds = samples.get(i).s - samples.get(i - 1).s;
+                double ds = p.s - samples.get(i - 1).s;
                 accel = (v[i] * v[i] - v[i - 1] * v[i - 1]) / (2.0 * Math.max(ds, 1e-9));
             } else {
                 accel = 0;
@@ -129,15 +130,29 @@ public class TimeOptimalTrajectoryGenerator {
             double alpha = 0;
             if (i < n - 1) {
                 double omegaNext = samples.get(i + 1).headingRate * v[i + 1];
-                double ds = samples.get(i + 1).s - samples.get(i).s;
+                double ds = samples.get(i + 1).s - p.s;
                 double vAvg = 0.5 * (v[i] + v[i + 1]);
                 double dt = ds / Math.max(vAvg, 1e-3);
                 alpha = (omegaNext - omega) / Math.max(dt, 1e-6);
             }
 
-            SampledPathPoint p = samples.get(i);
+            double pathTangent = p.heading;
+            if (i < n - 1) {
+                double dx = samples.get(i + 1).x - p.x;
+                double dy = samples.get(i + 1).y - p.y;
+                if (dx * dx + dy * dy > 1e-12) {
+                    pathTangent = Math.atan2(dy, dx);
+                }
+            } else if (i > 0) {
+                double dx = p.x - samples.get(i - 1).x;
+                double dy = p.y - samples.get(i - 1).y;
+                if (dx * dx + dy * dy > 1e-12) {
+                    pathTangent = Math.atan2(dy, dx);
+                }
+            }
+
             states[i] = new TrajectoryState(
-                    p.x, p.y, p.heading,
+                    p.x, p.y, p.heading, pathTangent,
                     v[i], accel,
                     omega, alpha,
                     time, p.s, p.curvature,
@@ -145,7 +160,7 @@ public class TimeOptimalTrajectoryGenerator {
             );
 
             if (i < n - 1) {
-                double ds = samples.get(i + 1).s - samples.get(i).s;
+                double ds = samples.get(i + 1).s - p.s;
                 double vAvg = 0.5 * (v[i] + v[i + 1]);
                 time += ds / Math.max(vAvg, 1e-3);
             }
@@ -167,13 +182,16 @@ public class TimeOptimalTrajectoryGenerator {
 
             double kappa = Math.abs(p.curvature);
             if (kappa > 1e-6) {
-                v = Math.min(v, Math.sqrt(model.maxLateralAcceleration / kappa));
-                v = Math.min(v, model.maxAngularVelocity / kappa);
+                // Holonomic: path curvature needs centripetal accel, not body yaw at κ·v.
+                // (κ·v angular cap is for non-holonomic path-tangent following and made
+                // constant-heading Bezier profiles artificially slow → ahead-of-schedule reverse.)
+                v = Math.min(v, Math.sqrt(model.getMaxLateralAcceleration() / kappa));
             }
 
+            // Cap speed from heading interpolation rate (turn-while-driving), not path κ.
             double headingRate = Math.abs(p.headingRate);
             if (headingRate > 1e-6) {
-                v = Math.min(v, model.maxAngularVelocity / headingRate);
+                v = Math.min(v, model.getMaxAngularVelocity() / headingRate);
             }
 
             vMax[i] = Math.max(v, 1e-3);

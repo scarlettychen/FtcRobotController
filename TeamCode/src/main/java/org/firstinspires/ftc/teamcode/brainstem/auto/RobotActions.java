@@ -1,88 +1,90 @@
-package org.firstinspires.ftc.teamcode.auto;
+package org.firstinspires.ftc.teamcode.brainstem.auto;
 
 import com.pedropathing.auto.ActionLibrary;
 import com.pedropathing.auto.AlliancePoses;
 import com.pedropathing.auto.AutoCommand;
 import com.pedropathing.auto.PedroDrive;
 
-import org.firstinspires.ftc.teamcode.auto.poses.BlueClosePoses;
-import org.firstinspires.ftc.teamcode.auto.poses.RedClosePoses;
-import org.firstinspires.ftc.teamcode.auto.poses.TestPoses;
+import org.firstinspires.ftc.teamcode.brainstem.BrainSTEMRobot;
+import org.firstinspires.ftc.teamcode.brainstem.auto.poses.BlueClosePoses;
+import org.firstinspires.ftc.teamcode.brainstem.auto.poses.RedClosePoses;
+import org.firstinspires.ftc.teamcode.brainstem.auto.poses.RobotPoses;
+import org.firstinspires.ftc.teamcode.brainstem.auto.poses.TestPoses;
 
 /**
- * Team named actions. Holds Blue + Red pose tables; call {@link #setAlliance(boolean)}
- * once at OpMode start. Prefer these over raw {@code drive.lineDrive(double[])}.
+ * Team-editable named drive and subsystem commands.
  *
- * <pre>
- * RobotActions bot = PedroGuide.createActions(robot.follower);
- * bot.setAlliance(isRed);
- * scheduler.schedule(bot.driveToCloseShoot());
- * </pre>
+ * <p>Add new autonomous actions here. Public auto routines should call names such as
+ * {@link #driveToGoal()} instead of raw coordinate/path builders.
  */
 public class RobotActions extends ActionLibrary {
+    protected final BrainSTEMRobot robot;
+    private final RobotPoses bluePoses;
+    private final RobotPoses redPoses;
 
-    public RobotActions(PedroDrive drive) {
-        this(drive, new BlueClosePoses(), new RedClosePoses());
+    public RobotActions(BrainSTEMRobot robot) {
+        this(robot, new PedroDrive(robot.follower), new BlueClosePoses(), new RedClosePoses());
     }
 
-    public RobotActions(PedroDrive drive, AlliancePoses blue, AlliancePoses red) {
+    public RobotActions(
+            BrainSTEMRobot robot,
+            PedroDrive drive,
+            RobotPoses blue,
+            RobotPoses red
+    ) {
         super(drive, blue, red);
-    }
-
-    public RobotActions(PedroDrive drive, AlliancePoses blue, AlliancePoses red, boolean startRed) {
-        super(drive, blue, red, startRed);
+        this.robot = robot;
+        this.bluePoses = blue;
+        this.redPoses = red;
     }
 
     /** Smoke-test actions: start (0,0,0), goal at +5 in X. */
-    public static RobotActions forSmokeTest(PedroDrive drive) {
+    public static RobotActions forSmokeTest(BrainSTEMRobot robot) {
         TestPoses poses = new TestPoses();
-        return new RobotActions(drive, poses, poses);
+        return new RobotActions(robot, new PedroDrive(robot.follower), poses, poses);
     }
 
-    // ---- Named drives (suppliers so alliance resolves at command init) ----
+    // ---- Named drives: coordinates resolve when each command initializes ----
 
-    /** (0,0,0) → (5,0,0) smoke-test move. */
     public AutoCommand driveForwardFive() {
-        return lineDrive(() -> {
-            cruise();
-            AlliancePoses p = poses();
-            if (p instanceof TestPoses) {
-                return ((TestPoses) p).forwardFive;
-            }
-            return AlliancePoses.xyz(5, 0, 0);
-        });
+        cruise();
+        return getDrive().forwardDrive(5.0);
+    }
+    public AutoCommand side() {
+        cruise();
+        return getDrive().turnTo(90);
     }
 
-    /** Drive to the close shooting / goal pose for the active alliance. */
+
     public AutoCommand driveToGoal() {
         return driveToCloseShoot();
     }
 
     public AutoCommand driveToCloseShoot() {
         return lineDrive(() -> {
-            precision();
-            return poses().close1Shooting;
+            cruise();
+            return robotPoses().close1Shooting;
         });
     }
 
     public AutoCommand driveToLookAtObelisk() {
         return lineDrive(() -> {
             cruise();
-            return poses().lookAtOb;
+            return robotPoses().lookAtOb;
         });
     }
 
     public AutoCommand driveToOpenGate() {
         return lineDrive(() -> {
             cruise();
-            return poses().openGatePos;
+            return robotPoses().openGatePos;
         });
     }
 
     public AutoCommand driveOffLine() {
         return lineDrive(() -> {
             cruise();
-            return poses().strafePos;
+            return robotPoses().strafePos;
         });
     }
 
@@ -90,9 +92,9 @@ public class RobotActions extends ActionLibrary {
         return pathDrive(
                 () -> {
                     loaded();
-                    return poses().collect1Pre;
+                    return robotPoses().collect1Pre;
                 },
-                () -> poses().firstSpikeEnd
+                () -> robotPoses().firstSpikeEnd
         );
     }
 
@@ -100,10 +102,10 @@ public class RobotActions extends ActionLibrary {
         return pathDrive(
                 () -> {
                     loaded();
-                    return poses().collect2Mid;
+                    return robotPoses().collect2Mid;
                 },
-                () -> poses().collect2Pre,
-                () -> poses().secondSpikeEnd
+                () -> robotPoses().collect2Pre,
+                () -> robotPoses().secondSpikeEnd
         );
     }
 
@@ -111,9 +113,9 @@ public class RobotActions extends ActionLibrary {
         return pathDrive(
                 () -> {
                     loaded();
-                    return poses().collect3Pre;
+                    return robotPoses().collect3Pre;
                 },
-                () -> poses().thirdSpikeEnd
+                () -> robotPoses().thirdSpikeEnd
         );
     }
 
@@ -121,13 +123,17 @@ public class RobotActions extends ActionLibrary {
         return pathDrive(
                 () -> {
                     precision();
-                    return poses().collect3PrePass;
+                    return robotPoses().collect3PrePass;
                 },
-                () -> poses().close1Shooting
+                () -> robotPoses().close1Shooting
         );
     }
 
-    // ---- Mechanism stubs (wire to BrainSTEMRobot subsystems) ----
+    public RobotPoses robotPoses() {
+        return isRed() ? redPoses : bluePoses;
+    }
+
+    // ---- Named subsystem commands: connect these to fields on BrainSTEMRobot ----
 
     public AutoCommand shooterTurnOnClose() {
         return run(() -> { /* robot.shooter.setShooterShootClose(); */ });

@@ -61,12 +61,21 @@ public class PoseTracker {
     public void update() {
         previousVelocity = getVelocity();
         previousPose = applyOffset(getRawPose());
-        currentPose = null;
-        currentVelocity = null;
-        currentAcceleration = null;
+        invalidateCache();
         previousPoseTime = currentPoseTime;
         currentPoseTime = System.nanoTime();
         localizer.update();
+    }
+
+    /**
+     * Drop cached pose/velocity so the next {@link #getPose()} re-reads the localizer.
+     * Required when an external localizer (Pinpoint → {@code ExternalPoseLocalizer}) is
+     * updated outside {@link #update()}.
+     */
+    public void invalidateCache() {
+        currentPose = null;
+        currentVelocity = null;
+        currentAcceleration = null;
     }
 
     /**
@@ -76,7 +85,11 @@ public class PoseTracker {
      */
     public void setStartingPose(Pose set) {
         startingPose = set;
-        previousPose = startingPose;
+        // Invalidate / refresh the pose cache. Without this, getPose() keeps returning the
+        // constructor default (0,0,0) until the first update(), so paths baked at command
+        // initialize() start from the wrong place (classic back-then-strafe symptom with FTC coords).
+        currentPose = set.copy();
+        previousPose = startingPose.copy();
         previousPoseTime = System.nanoTime();
         currentPoseTime = System.nanoTime();
         localizer.setStartPose(set);
@@ -207,6 +220,7 @@ public class PoseTracker {
     public void setPose(Pose set) {
         resetOffset();
         localizer.setPose(set);
+        currentPose = set.copy();
     }
 
     /**

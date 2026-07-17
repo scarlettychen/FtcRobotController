@@ -5,7 +5,7 @@ import com.pedropathing.VectorCalculator;
 import com.pedropathing.control.FilteredPIDFCoefficients;
 import com.pedropathing.control.PIDFCoefficients;
 import com.pedropathing.drivetrain.Drivetrain;
-import com.pedropathing.model.RobotModel;
+import com.pedropathing.model.MotionModel;
 import com.pedropathing.paths.PathConstraints;
 import com.pedropathing.paths.PathPoint;
 import com.pedropathing.trajectory.PredictiveTrajectoryFollower;
@@ -70,8 +70,8 @@ public class Follower {
     private Runnable resetFollowing = null;
     private Queue<PathCallback> currentCallbacks;
 
-    /** Physics model for time-optimal profiling + feedforward (mutable for voltage updates). */
-    public RobotModel robotModel = new RobotModel();
+    /** TeamCode-owned physics model for time-optimal profiling + feedforward. */
+    private MotionModel motionModel;
     /** Predictive follower used when {@link #followTrajectory(Trajectory)} is active. */
     public PredictiveTrajectoryFollower trajectoryFollower;
     private boolean followingTrajectory = false;
@@ -92,9 +92,6 @@ public class Follower {
         vectorCalculator = new VectorCalculator(constants);
         this.drivetrain = drivetrain;
         poseHistory = new PoseHistory(poseTracker);
-        this.robotModel.mass = constants.mass;
-        this.trajectoryFollower = new PredictiveTrajectoryFollower(poseTracker, drivetrain, robotModel);
-
         BEZIER_CURVE_SEARCH_LIMIT = constants.BEZIER_CURVE_SEARCH_LIMIT;
         holdPointTranslationalScaling = constants.holdPointTranslationalScaling;
         holdPointHeadingScaling = constants.holdPointHeadingScaling;
@@ -658,25 +655,35 @@ public class Follower {
      * Prefer generating during init via {@link TimeOptimalTrajectoryGenerator#generate}.
      */
     public void followTrajectory(Trajectory trajectory) {
-        breakFollowing();
+        requireMotionModel();
+        // Do not call full breakFollowing() here: it cancels an active trajectoryFollower
+        // (finished=true, running=false) and can race with follow() on some loops.
+        manualDrive = false;
+        holdingPosition = false;
+        isTurning = false;
+        reachedParametricPathEnd = false;
+        zeroVelocityDetectedTimer = null;
+        errorCalculator.breakFollowing();
+        vectorCalculator.breakFollowing();
+        drivetrain.breakFollowing();
         followingTrajectory = true;
         isBusy = true;
         trajectoryFollower.follow(trajectory);
     }
 
     /**
-     * Sample {@code path} with the current {@link #robotModel}, generate a time-optimal
+     * Sample {@code path} with the current {@link #motionModel}, generate a time-optimal
      * trajectory offline-style (may take a few ms — call from init if possible), then follow it.
      */
     public void followPathTimeOptimal(Path path) {
-        followTrajectory(TimeOptimalTrajectoryGenerator.generate(path, robotModel));
+        followTrajectory(TimeOptimalTrajectoryGenerator.generate(path, requireMotionModel()));
     }
 
     /**
      * Same as {@link #followPathTimeOptimal(Path)} for a full {@link PathChain}.
      */
     public void followPathChainTimeOptimal(PathChain chain) {
-        followTrajectory(TimeOptimalTrajectoryGenerator.generate(chain, robotModel));
+        followTrajectory(TimeOptimalTrajectoryGenerator.generate(chain, requireMotionModel()));
     }
 
     public boolean isFollowingTrajectory() {
@@ -687,13 +694,25 @@ public class Follower {
         return trajectoryFollower;
     }
 
-    public RobotModel getRobotModel() {
-        return robotModel;
+    public MotionModel getMotionModel() {
+        return motionModel;
     }
 
-    public void setRobotModel(RobotModel robotModel) {
-        this.robotModel = robotModel;
-        this.trajectoryFollower = new PredictiveTrajectoryFollower(poseTracker, drivetrain, robotModel);
+    public void setMotionModel(MotionModel motionModel) {
+        if (motionModel == null) {
+            throw new IllegalArgumentException("motionModel cannot be null");
+        }
+        this.motionModel = motionModel;
+        this.trajectoryFollower = new PredictiveTrajectoryFollower(poseTracker, drivetrain, motionModel);
+    }
+
+    private MotionModel requireMotionModel() {
+        if (motionModel == null) {
+            throw new IllegalStateException(
+                    "Time-optimal following requires a TeamCode MotionModel. "
+                            + "Call follower.setMotionModel(...) during robot construction.");
+        }
+        return motionModel;
     }
 
     /**

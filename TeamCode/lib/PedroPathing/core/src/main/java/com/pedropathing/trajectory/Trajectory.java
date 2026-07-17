@@ -67,13 +67,42 @@ public class Trajectory {
                 (s - states[lo].s) / Math.max(states[hi].s - states[lo].s, 1e-9));
     }
 
+    /**
+     * Nearest sample to (x, y) whose arc length lies in {@code [sCenter - window, sCenter + window]}.
+     * Global closest-point is wrong on bulging Beziers: the chord is nearer the path end than the
+     * bulge, so unconstrained search snaps to s≈L (pathDone jumps 0→1) and commands reverse.
+     */
+    public TrajectoryState findClosestNear(double x, double y, double sCenter, double window) {
+        double sMin = sCenter - window;
+        double sMax = sCenter + window;
+        int best = -1;
+        double bestD = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < states.length; i++) {
+            double s = states[i].s;
+            if (s < sMin || s > sMax) continue;
+            double dx = states[i].x - x;
+            double dy = states[i].y - y;
+            double d = dx * dx + dy * dy;
+            if (d < bestD) {
+                bestD = d;
+                best = i;
+            }
+        }
+        if (best < 0) {
+            return sampleByDistance(sCenter);
+        }
+        return states[best];
+    }
+
     private static TrajectoryState interpolate(TrajectoryState a, TrajectoryState b, double alpha) {
         alpha = Math.max(0, Math.min(1, alpha));
         double heading = a.heading + wrap(b.heading - a.heading) * alpha;
+        double pathTangent = a.pathTangent + wrap(b.pathTangent - a.pathTangent) * alpha;
         return new TrajectoryState(
                 lerp(a.x, b.x, alpha),
                 lerp(a.y, b.y, alpha),
                 heading,
+                pathTangent,
                 lerp(a.velocity, b.velocity, alpha),
                 lerp(a.acceleration, b.acceleration, alpha),
                 lerp(a.angularVelocity, b.angularVelocity, alpha),

@@ -40,6 +40,14 @@ public abstract class AutoMode implements Component {
 
     public abstract void run();
 
+    /**
+     * Starting field pose for this auton as {@code {x, y, headingDegrees}}.
+     * Override per auton when it does not use the active alliance table's default start.
+     */
+    public double[] getStartPose() {
+        return actions.poses().start;
+    }
+
     public void setAlliance(boolean red) {
         actions.setAlliance(red);
     }
@@ -67,6 +75,7 @@ public abstract class AutoMode implements Component {
 
     public void start() {
         root = null;
+        drive.setStartPose(getStartPose());
         run();
         if (root == null) {
             throw new IllegalStateException(

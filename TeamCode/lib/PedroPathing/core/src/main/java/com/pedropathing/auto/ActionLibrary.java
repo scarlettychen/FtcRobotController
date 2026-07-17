@@ -85,15 +85,15 @@ public abstract class ActionLibrary {
     // ---- Phase A motion context (scales time-optimal profiles) ----
 
     protected void cruise() {
-        drive.getFollower().getRobotModel().cruise();
+        drive.getFollower().getMotionModel().cruise();
     }
 
     protected void loaded() {
-        drive.getFollower().getRobotModel().loaded();
+        drive.getFollower().getMotionModel().loaded();
     }
 
     protected void precision() {
-        drive.getFollower().getRobotModel().precision();
+        drive.getFollower().getMotionModel().precision();
     }
 
     // ---- Low-level builders (resolve poses when the command starts) ----
@@ -170,19 +170,19 @@ public abstract class ActionLibrary {
         return drive.turnTo(headingDegrees);
     }
 
-    protected AutoCommand waitSeconds(double seconds) {
+    public AutoCommand waitSeconds(double seconds) {
         return FunctionalCommand.waitSeconds(seconds);
     }
 
-    protected AutoCommand run(Runnable action) {
+    public AutoCommand run(Runnable action) {
         return FunctionalCommand.instant(action);
     }
 
-    protected AutoCommand waitUntil(BooleanSupplier condition) {
+    public AutoCommand waitUntil(BooleanSupplier condition) {
         return FunctionalCommand.runUntil(() -> {}, condition);
     }
 
-    protected AutoCommand runThenWait(Runnable start, BooleanSupplier finished) {
+    public AutoCommand runThenWait(Runnable start, BooleanSupplier finished) {
         return sequence(
                 FunctionalCommand.instant(start),
                 FunctionalCommand.runUntil(() -> {}, finished)

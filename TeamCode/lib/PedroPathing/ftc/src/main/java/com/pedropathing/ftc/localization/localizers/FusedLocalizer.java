@@ -4,11 +4,11 @@ import com.pedropathing.geometry.Pose;
 import com.pedropathing.localization.Localizer;
 import com.pedropathing.math.MathFunctions;
 import com.pedropathing.math.Vector;
-import com.pedropathing.model.RobotModel;
+import com.pedropathing.model.MotionModel;
 
 /**
  * Simple 1D Kalman-style fuse of wheel/odo pose with Limelight AprilTag botpose.
- * Writes {@link RobotModel#localizationConfidence} when a model is attached (Phase A).
+ * Writes localization confidence to an attached {@link MotionModel}.
  */
 public class FusedLocalizer implements Localizer {
 
@@ -19,7 +19,7 @@ public class FusedLocalizer implements Localizer {
 
     private final Localizer odometry;
     private final AprilTagLocalizer vision;
-    private final RobotModel robotModel;
+    private final MotionModel motionModel;
 
     private Pose currentFusedPose;
     private double localizationConfidence = 1.0;
@@ -28,10 +28,10 @@ public class FusedLocalizer implements Localizer {
         this(odometry, vision, null);
     }
 
-    public FusedLocalizer(Localizer odometry, AprilTagLocalizer vision, RobotModel robotModel) {
+    public FusedLocalizer(Localizer odometry, AprilTagLocalizer vision, MotionModel motionModel) {
         this.odometry = odometry;
         this.vision = vision;
-        this.robotModel = robotModel;
+        this.motionModel = motionModel;
         this.currentFusedPose = odometry.getPose();
     }
 
@@ -82,8 +82,8 @@ public class FusedLocalizer implements Localizer {
             localizationConfidence = clamp(localizationConfidence * 0.995, 0.55, 1.0);
         }
 
-        if (robotModel != null) {
-            robotModel.localizationConfidence = localizationConfidence;
+        if (motionModel != null) {
+            motionModel.setLocalizationConfidence(localizationConfidence);
         }
     }
 

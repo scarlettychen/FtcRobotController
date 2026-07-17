@@ -64,10 +64,12 @@ public class Mecanum extends Drivetrain {
             MotorConfigurationType motorConfigurationType = motor.getMotorType().clone();
             motorConfigurationType.setAchieveableMaxRPMFraction(1.0);
             motor.setMotorType(motorConfigurationType);
+            motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         }
 
         setMotorsToFloat();
         breakFollowing();
+        updateConstants();
 
         Vector copiedFrontLeftVector = mecanumConstants.frontLeftVector.normalize();
         vectors = new Vector[]{
@@ -79,6 +81,10 @@ public class Mecanum extends Drivetrain {
 
     @Override
     public void updateConstants() {
+        for (DcMotorEx motor : motors) {
+            // Another OpMode may have left motors in RUN_TO_POSITION; setPower then does nothing useful.
+            motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        }
         leftFront.setDirection(constants.leftFrontMotorDirection);
         leftRear.setDirection(constants.leftRearMotorDirection);
         rightFront.setDirection(constants.rightFrontMotorDirection);
@@ -223,10 +229,16 @@ public class Mecanum extends Drivetrain {
     @Override
     public void runDrive(double[] drivePowers) {
         for (int i = 0; i < motors.size(); i++) {
-            if (Math.abs(lastMotorPowers[i] - drivePowers[i]) > motorCachingThreshold ||
-                    (drivePowers[i] == 0 && lastMotorPowers[i] != 0)) {
-                lastMotorPowers[i] = drivePowers[i];
-                motors.get(i).setPower(drivePowers[i]);
+            double power = drivePowers[i];
+            if (Double.isNaN(power) || Double.isInfinite(power)) {
+                power = 0;
+            }
+            // Always apply; NaN comparisons break the cache check and can leave motors stuck at 0.
+            if (Math.abs(lastMotorPowers[i] - power) > motorCachingThreshold
+                    || (power == 0 && lastMotorPowers[i] != 0)
+                    || Double.isNaN(lastMotorPowers[i])) {
+                lastMotorPowers[i] = power;
+                motors.get(i).setPower(power);
             }
         }
     }

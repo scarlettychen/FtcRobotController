@@ -22,13 +22,15 @@ public class PinpointConstants {
     /** The Y Offset of the Forward Encoder (Deadwheel) from the center of the robot in DistanceUnit
      * @see #distanceUnit
      * Default Value: 1 */
-    public  double forwardPodY = -107.951;
+    public  double forwardPodY = -28.5;
 
 
     /** The X Offset of the Strafe Encoder (Deadwheel) from the center of the robot in DistanceUnit
      * @see #distanceUnit
      * Default Value: -2.5 */
-    public  double strafePodX = -92.006;
+    public  double strafePodX = -166.7;
+
+
 
     /** The Unit of Distance that the Pinpoint uses to measure distance
      * Default Value: DistanceUnit.INCH */
@@ -36,7 +38,7 @@ public class PinpointConstants {
 
     /** The name of the Pinpoint in the hardware map (name of the I2C port it is plugged into)
      * Default Value: "pinpoint" */
-    public  String hardwareMapName = "pinpoint";
+    public  String hardwareMapName = "odo";
 
     /** Custom Yaw Scalar for the Pinpoint (overrides the calibration of the Pinpoint) */
     @SuppressLint("NewApi")

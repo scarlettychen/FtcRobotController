@@ -21,7 +21,8 @@ apply plugin: 'com.android.application'
 
 android {
 
-    compileSdkVersion 30
+    // Panels / modern libraries need API 34+
+    compileSdkVersion 35
 
     signingConfigs {
         release {

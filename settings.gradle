@@ -12,6 +12,7 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url = "https://maven.pedropathing.com/" }
+        maven { url = "https://mymaven.bylazar.com/releases" }
     }
 }
 

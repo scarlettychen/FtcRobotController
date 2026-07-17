@@ -64,7 +64,9 @@ public class PedroBrainSTEMBridge implements Component {
                                   double vx, double vy, double omega,
                                   double localizationConfidence) {
         syncPoseFromRobot(x, y, headingRad, vx, vy, omega);
-        follower.getRobotModel().localizationConfidence = localizationConfidence;
+        if (follower.getMotionModel() != null) {
+            follower.getMotionModel().setLocalizationConfidence(localizationConfidence);
+        }
     }
 
     /** Convenience when you already pack values like BrainSTEMRobot pose/vel arrays. */

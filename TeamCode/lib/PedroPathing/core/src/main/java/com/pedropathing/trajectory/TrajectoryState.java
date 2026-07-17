@@ -7,6 +7,8 @@ public final class TrajectoryState {
     public final double x;
     public final double y;
     public final double heading;
+    /** Geometric path tangent (direction of travel along the curve), radians. */
+    public final double pathTangent;
     public final double velocity;
     public final double acceleration;
     public final double angularVelocity;
@@ -28,9 +30,21 @@ public final class TrajectoryState {
             double time, double s, double curvature,
             double t, int pathIndex
     ) {
+        this(x, y, heading, heading, velocity, acceleration,
+                angularVelocity, angularAcceleration, time, s, curvature, t, pathIndex);
+    }
+
+    public TrajectoryState(
+            double x, double y, double heading, double pathTangent,
+            double velocity, double acceleration,
+            double angularVelocity, double angularAcceleration,
+            double time, double s, double curvature,
+            double t, int pathIndex
+    ) {
         this.x = x;
         this.y = y;
         this.heading = heading;
+        this.pathTangent = pathTangent;
         this.velocity = velocity;
         this.acceleration = acceleration;
         this.angularVelocity = angularVelocity;
@@ -48,7 +62,7 @@ public final class TrajectoryState {
             double time
     ) {
         return new TrajectoryState(
-                x, y, heading,
+                x, y, heading, pathTangent,
                 velocity, acceleration,
                 angularVelocity, angularAcceleration,
                 time, s, curvature, t, pathIndex

@@ -46,6 +46,21 @@ public class ExternalPoseLocalizer implements Localizer {
         setState(x, y, headingRad, 0, 0, 0);
     }
 
+    /**
+     * Push a pose already in Pedro coordinates (e.g. from PinpointLocalizer).
+     * Prefer {@link #setState} when the source is FTC field coordinates.
+     */
+    public void setPedroState(double x, double y, double headingRad,
+                              double vx, double vy, double omega) {
+        if (hasHeadingSample) {
+            totalHeading += wrapDelta(headingRad - lastHeading);
+        }
+        hasHeadingSample = true;
+        lastHeading = headingRad;
+        pose = new Pose(x, y, headingRad);
+        velocity = new Pose(vx, vy, omega);
+    }
+
     @Override
     public Pose getPose() {
         return pose.copy();

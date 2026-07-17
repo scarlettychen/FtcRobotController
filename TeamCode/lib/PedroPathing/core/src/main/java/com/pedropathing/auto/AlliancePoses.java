@@ -22,25 +22,6 @@ public abstract class AlliancePoses {
 
     public double[] start = xyz(0, 0, 0);
 
-    public double[] lookAtOb = xyz(0, 0, 0);
-    public double[] openGatePos = xyz(0, 0, 0);
-    public double[] limelight = xyz(0, 0, 0);
-
-    public double[] close1Shooting = xyz(0, 0, 0);
-
-    public double[] collect1Pre = xyz(0, 0, 0);
-    public double[] collect1Mid = xyz(0, 0, 0);
-    public double[] firstSpikeEnd = xyz(0, 0, 0);
-    public double[] strafePos = xyz(0, 0, 0);
-
-    public double[] collect2Mid = xyz(0, 0, 0);
-    public double[] collect2Pre = xyz(0, 0, 0);
-    public double[] secondSpikeEnd = xyz(0, 0, 0);
-
-    public double[] collect3Pre = xyz(0, 0, 0);
-    public double[] collect3PrePass = xyz(0, 0, 0);
-    public double[] thirdSpikeEnd = xyz(0, 0, 0);
-
     /** Convenience ctor helper: {@code {x, y, headingDegrees}}. */
     public static double[] xyz(double x, double y, double headingDegrees) {
         return new double[]{x, y, headingDegrees};
