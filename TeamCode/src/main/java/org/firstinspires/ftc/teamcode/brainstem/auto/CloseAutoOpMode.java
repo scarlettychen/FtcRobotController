@@ -6,7 +6,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 import org.firstinspires.ftc.teamcode.brainstem.BrainSTEMRobot;
 
-@Autonomous(name = "Pedro Close Auto", group = "Pedro")
+@Autonomous(name = "forward + turn")
 public class CloseAutoOpMode extends LinearOpMode {
 
     @Override

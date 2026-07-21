@@ -68,13 +68,13 @@ public class Trajectory {
     }
 
     /**
-     * Nearest sample to (x, y) whose arc length lies in {@code [sCenter - window, sCenter + window]}.
-     * Global closest-point is wrong on bulging Beziers: the chord is nearer the path end than the
-     * bulge, so unconstrained search snaps to s≈L (pathDone jumps 0→1) and commands reverse.
+     * Nearest sample to (x, y) in {@code [sCenter - windowBehind, sCenter + windowAhead]}.
+     * Ahead is kept smaller than behind so chord-cutting cannot snap closest-point to the path end.
      */
-    public TrajectoryState findClosestNear(double x, double y, double sCenter, double window) {
-        double sMin = sCenter - window;
-        double sMax = sCenter + window;
+    public TrajectoryState findClosestNear(
+            double x, double y, double sCenter, double windowBehind, double windowAhead) {
+        double sMin = sCenter - windowBehind;
+        double sMax = sCenter + windowAhead;
         int best = -1;
         double bestD = Double.POSITIVE_INFINITY;
         for (int i = 0; i < states.length; i++) {
@@ -92,6 +92,11 @@ public class Trajectory {
             return sampleByDistance(sCenter);
         }
         return states[best];
+    }
+
+    /** Symmetric window convenience (behind = ahead = window). */
+    public TrajectoryState findClosestNear(double x, double y, double sCenter, double window) {
+        return findClosestNear(x, y, sCenter, window, window);
     }
 
     private static TrajectoryState interpolate(TrajectoryState a, TrajectoryState b, double alpha) {

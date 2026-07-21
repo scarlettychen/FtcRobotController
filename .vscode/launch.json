@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "FTC Deploy Robot",
+        "type": "node",
+        "request": "launch",
+        "runtimeExecutable": "echo",
+        "runtimeArgs": [
+          "Use Terminal > Run Task > FTC Deploy Robot"
+        ]
+      }
+    ]
+  }

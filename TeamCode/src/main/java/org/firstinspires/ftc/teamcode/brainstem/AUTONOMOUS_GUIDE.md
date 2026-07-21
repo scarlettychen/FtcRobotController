@@ -169,10 +169,14 @@ Available inside `RobotActions`:
 
 - `run(Runnable)` — one-shot state change
 - `waitSeconds(seconds)` — wall-clock delay
-- `waitUntil(BooleanSupplier)` — blocks until condition is true
-- `runThenWait(start, finished)` — run once, then block until ready
+- `waitUntil(BooleanSupplier)` — finishes when condition is true
+- `runThenWait(start, finished)` — run once, then wait until ready
 - `sequence(AutoCommand...)` — commands one after another
 - `parallel(AutoCommand...)` — all commands together; finishes when all finish
+- `conditional(condition, onTrue, onFalse)` — branch once at initialize
+- `retry(supplier, success, maxAttempts)` — fresh command per attempt until success
+- `validate(condition, onSuccess, onFailure)` — validation branch with PASS/FAILED log
+- `waitUntilValidated(condition, timeoutSeconds)` — wait or TIMEOUT, then continue
 
 Low-level `FunctionalCommand` helpers are also available:
 
@@ -181,6 +185,88 @@ Low-level `FunctionalCommand` helpers are also available:
 - `FunctionalCommand.runUntil(executeEachLoop, finished)`
 - constructor `(onInit, onExecute, finished, onEnd)`
 
+### High-level resilient actions (use these in match autos)
+
+Prefer named helpers over raw `retry` / `validate` trees. Recovery stays **local** to the
+action that can fail; attempt counts and timeouts are fixed so behavior stays deterministic.
+
+| Helper | Behavior |
+|--------|----------|
+| `tryCollect()` | `retry(() -> collect(), hasGamePiece, 2)` |
+| `tryScore()` | `validate(hasGamePiece, score(), recoverIntake())` |
+| `safeAlign()` | `retry(() -> align(), isAligned, 2)` |
+| `recoverLocalization()` | brief settle + validate Pinpoint is still usable |
+
+Wire sensor stubs on `RobotActions`: `hasGamePiece()`, `isShooterAtSpeed()`, `isAligned()`,
+`isLocalizationReasonable()`.
+
+## 5b. Auton composition examples
+
+### 1) Normal deterministic auton (no branching)
+
+```java
+@Override
+public void run() {
+    run(sequence(
+            parallel(bot.shooterTurnOnClose(), bot.driveToGoal()),
+            bot.waitSeconds(0.2),
+            bot.moveSpindexer360(),
+            bot.collectFirstSpike(),
+            bot.driveToGoal()
+    ));
+}
+```
+
+Fixed order, fixed poses — same path every run.
+
+### 2) Retrying a failed intake
+
+```java
+@Override
+public void run() {
+    run(sequence(
+            bot.driveOffLine(),
+            bot.tryCollect(),          // up to 2 collect attempts until hasGamePiece
+            bot.driveToGoal(),
+            bot.tryScore()
+    ));
+}
+```
+
+`tryCollect()` owns its own recovery budget. The rest of the auton does not grow a decision tree.
+
+Equivalent explicit form (prefer the helper in match code):
+
+```java
+bot.retry(() -> bot.collect(), bot::hasGamePiece, 2);
+```
+
+### 3) Validating a scoring action
+
+```java
+@Override
+public void run() {
+    run(sequence(
+            bot.tryCollect(),
+            bot.safeAlign(),
+            bot.tryScore()   // requires piece; waits for shooter speed inside score()
+    ));
+}
+```
+
+Inside `tryScore()` / `score()`:
+
+- no piece → local `recoverIntake()` (not a global “mode”)
+- piece present → drive to shoot, `waitUntilValidated(isShooterAtSpeed, 1.5)`, fire only on PASS
+
+Logs look like:
+
+```text
+Validation:
+    PASS
+```
+
+or `FAILED` / `TIMEOUT`.
 ## 6. Write an AutoMode auton
 
 Each auton owns its start pose. Override `getStartPose()`:
@@ -203,12 +289,12 @@ public final class MyAuto extends AutoMode {
 
     @Override
     public void run() {
-        sequence(
+        run(sequence(
                 parallel(bot.shooterTurnOnClose(), bot.driveToGoal()),
                 bot.waitSeconds(0.2),
                 bot.moveSpindexer360(),
                 bot.collectFirstSpike()
-        );
+        ));
     }
 }
 ```
@@ -225,7 +311,8 @@ auton have a different start without putting an auton inside `BrainSTEMRobot`.
 - `update()` — call every active loop
 - `isFinished()`
 - `stop()` — cancel and break following
-- inside `run()`: `sequence(...)`, `parallel(...)`, `schedule(...)`
+- inside `run()`: `run(sequence(...))`, `parallel(...)`, `schedule(...)`, `conditional(...)`,
+  `retry(...)`, `validate(...)`, `waitUntilValidated(...)`
 
 ## 7. Own the auton from an OpMode
 
@@ -322,3 +409,8 @@ start is the follower's current pose at that moment; destinations are absolute f
 - Explicitly stop subsystem motors; one-shot commands do not auto-stop them.
 - Always cancel/stop and call `breakFollowing()` when an OpMode ends early.
 - Tune the TeamCode `RobotModel` before reaching for classic Pedro PID tuners while TO is on.
+- Match autos: call `tryCollect` / `tryScore` / `safeAlign` / `recoverLocalization`, not raw
+  `retry`/`validate` trees. Keep recovery inside the failing action.
+- Use `robot.setStartPose(double[])` for absolute Pinpoint stamps (not repeated
+  `pinpoint.setStartPose`, which rebases and corrupts XY).
+- Fixed retry counts and timeouts keep resilient actions deterministic.

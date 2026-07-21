@@ -3,6 +3,9 @@ package com.pedropathing.auto;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.util.Component;
 
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
+
 /**
  * Base class for english-like autons. Implements {@link Component}.
  *
@@ -79,7 +82,7 @@ public abstract class AutoMode implements Component {
         run();
         if (root == null) {
             throw new IllegalStateException(
-                    "AutoMode.run() must call sequence(...) (or schedule(...)).");
+                    "AutoMode.run() must call run(sequence(...)) or schedule(...).");
         }
         scheduler.schedule(root);
         started = true;
@@ -127,12 +130,67 @@ public abstract class AutoMode implements Component {
         startPose(actions.poses().start);
     }
 
-    protected void sequence(AutoCommand... commands) {
-        root = actions.sequence(commands);
+    /**
+     * Build a sequential group (does not schedule by itself). Prefer
+     * {@code run(sequence(...))} inside {@link #run()}.
+     */
+    protected AutoCommand sequence(AutoCommand... commands) {
+        return actions.sequence(commands);
+    }
+
+    /**
+     * Set the root command for this auton. Typical form:
+     * <pre>{@code
+     * run(sequence(
+     *     bot.driveSmokePath(),
+     *     bot.tryScore()
+     * ));
+     * }</pre>
+     */
+    protected void run(AutoCommand command) {
+        root = command;
     }
 
     protected AutoCommand parallel(AutoCommand... commands) {
         return actions.parallel(commands);
+    }
+
+    /**
+     * Branch once at initialize: run {@code onTrue} or {@code onFalse}.
+     * See {@link ActionLibrary#conditional}.
+     */
+    protected AutoCommand conditional(
+            BooleanSupplier condition,
+            AutoCommand onTrue,
+            AutoCommand onFalse
+    ) {
+        return actions.conditional(condition, onTrue, onFalse);
+    }
+
+    /**
+     * Retry a fresh command until success or attempts exhausted.
+     * See {@link ActionLibrary#retry}.
+     */
+    protected AutoCommand retry(
+            Supplier<AutoCommand> command,
+            BooleanSupplier successCondition,
+            int maxAttempts
+    ) {
+        return actions.retry(command, successCondition, maxAttempts);
+    }
+
+    /** See {@link ActionLibrary#validate}. */
+    protected AutoCommand validate(
+            BooleanSupplier condition,
+            AutoCommand onSuccess,
+            AutoCommand onFailure
+    ) {
+        return actions.validate(condition, onSuccess, onFailure);
+    }
+
+    /** See {@link ActionLibrary#waitUntilValidated}. */
+    protected AutoCommand waitUntilValidated(BooleanSupplier condition, double timeoutSeconds) {
+        return actions.waitUntilValidated(condition, timeoutSeconds);
     }
 
     protected void schedule(AutoCommand command) {

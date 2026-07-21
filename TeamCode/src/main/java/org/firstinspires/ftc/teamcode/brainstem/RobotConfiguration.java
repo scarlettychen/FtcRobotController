@@ -62,15 +62,18 @@ public class RobotConfiguration {
                 .maxDeceleration(100.0)
                 .maxAngularVelocity(6.0)
                 .maxAngularAcceleration(20.0)
-                .feedforward(0.05, 0.15, 0.003);
+                .feedforward(0.05, 0.17, 0.003);
     }
 
-    /** Team-editable feedback gains layered on top of RobotModel feedforward. */
     public void configurePredictiveFollower(Follower follower) {
         PredictiveTrajectoryFollower predictive = follower.getTrajectoryFollower();
-        // Cross-track modest so it doesn't steal pathing power from Mecanum.calculateDrive.
-        predictive.setGains(0.1, 0.015, 0.08, 0.8, 0.05);
+
+        predictive.setGains(0.1, 0.015, 0.12, 0.8, 0.05);
         predictive.kVOmega = 0.12;
         predictive.kAAlpha = 0.02;
+        predictive.endCrossTrackBoost = 1.75;
+        predictive.crossMinPower = 0.18;
+        predictive.closestAheadInches = 3.0;
+        predictive.settleHoldSeconds = 0.2;
     }
 }

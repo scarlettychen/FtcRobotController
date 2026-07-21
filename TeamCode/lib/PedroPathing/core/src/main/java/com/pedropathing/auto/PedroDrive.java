@@ -25,6 +25,12 @@ public class PedroDrive {
     private final Follower follower;
     private boolean useTimeOptimal = true;
     private boolean holdEnd = true;
+    /**
+     * Option: when true, time-optimal paths run a settle hold on the baked end pose after the
+     * profile. Default false so mid-auton paths keep flowing; enable for the last path of an auton
+     * (or any path that must nail end XY).
+     */
+    private boolean settleEnd = false;
     private boolean externalLoop = false;
 
     /**
@@ -64,6 +70,20 @@ public class PedroDrive {
     public PedroDrive holdEnd(boolean holdEnd) {
         this.holdEnd = holdEnd;
         return this;
+    }
+
+    /**
+     * Option to enable the TO settle phase (hold end X/Y/heading after the profile).
+     * Leave false for normal mid-auton paths; set true on the last path of autonomous
+     * (or any single-path smoke test that must finish on the baked end).
+     */
+    public PedroDrive settleEnd(boolean settleEnd) {
+        this.settleEnd = settleEnd;
+        return this;
+    }
+
+    public boolean isSettleEnd() {
+        return settleEnd;
     }
 
     /**
@@ -126,14 +146,27 @@ public class PedroDrive {
     }
 
     /**
+     * How robot heading is set while following a Bezier.
+     */
+    public enum BezierHeading {
+        /** Hold the robot's heading at path start (no rotate). */
+        HOLD_START,
+        /** Hold a fixed Pedro-frame heading for the whole path. */
+        HOLD,
+        /** Face along the curve tangent — heading changes with the path. */
+        TANGENT
+    }
+
+    /**
      * Curved Bezier from the robot's current pose through absolute control/end poses.
      * Pass Pedro poses (e.g. from {@link AlliancePoses#toPose} / {@link Pose#fromField}).
+     * Heading held at start.
      */
     public AutoCommand bezierDrive(Pose... poses) {
         if (poses == null || poses.length == 0) {
             throw new IllegalArgumentException("bezierDrive requires at least an end pose");
         }
-        return new BezierDriveCommand(this, Arrays.asList(poses), false, Double.NaN);
+        return new BezierDriveCommand(this, Arrays.asList(poses), BezierHeading.HOLD_START, Double.NaN);
     }
 
     /** Forces end heading in field degrees (converted to Pedro for following). */
@@ -142,16 +175,39 @@ public class PedroDrive {
             throw new IllegalArgumentException("bezierDrive requires at least an end pose");
         }
         double pedroHeading = Pose.fromFieldDegrees(0, 0, endHeadingDegrees).getHeading();
-        return new BezierDriveCommand(this, Arrays.asList(poses), true, pedroHeading);
+        return new BezierDriveCommand(this, Arrays.asList(poses), BezierHeading.HOLD, pedroHeading);
     }
 
+    /**
+     * Field-coordinate controls…end. Holds the <em>end</em> pose heading constant for the path.
+     */
     public AutoCommand bezierDrive(double[]... poseArrays) {
+        if (poseArrays == null || poseArrays.length == 0) {
+            throw new IllegalArgumentException("bezierDrive requires at least an end pose");
+        }
         Pose[] poses = new Pose[poseArrays.length];
         for (int i = 0; i < poseArrays.length; i++) {
             poses[i] = AlliancePoses.toPose(poseArrays[i]);
         }
         Pose end = poses[poses.length - 1];
-        return new BezierDriveCommand(this, Arrays.asList(poses), true, end.getHeading());
+        return new BezierDriveCommand(
+                this, Arrays.asList(poses), BezierHeading.HOLD, end.getHeading());
+    }
+
+    /**
+     * Same geometry as {@link #bezierDrive(double[]...)}, but heading follows the path tangent
+     * (robot yaws with the curve).
+     */
+    public AutoCommand bezierDriveTangent(double[]... poseArrays) {
+        if (poseArrays == null || poseArrays.length == 0) {
+            throw new IllegalArgumentException("bezierDriveTangent requires at least an end pose");
+        }
+        Pose[] poses = new Pose[poseArrays.length];
+        for (int i = 0; i < poseArrays.length; i++) {
+            poses[i] = AlliancePoses.toPose(poseArrays[i]);
+        }
+        return new BezierDriveCommand(
+                this, Arrays.asList(poses), BezierHeading.TANGENT, Double.NaN);
     }
 
     public AutoCommand bezierDrive(Marker[] markers, Pose... poses) {
@@ -159,7 +215,8 @@ public class PedroDrive {
             throw new IllegalArgumentException("bezierDrive requires at least an end pose");
         }
         Pose end = poses[poses.length - 1];
-        return new BezierDriveCommand(this, Arrays.asList(poses), true, end.getHeading(), markers);
+        return new BezierDriveCommand(
+                this, Arrays.asList(poses), BezierHeading.HOLD, end.getHeading(), markers);
     }
 
     public AutoCommand pathDrive(double[]... waypoints) {
@@ -207,7 +264,7 @@ public class PedroDrive {
         follow(path);
     }
 
-    void startBezier(List<Pose> absolutePoses, boolean setHeading, double endHeadingRadiansPedro) {
+    void startBezier(List<Pose> absolutePoses, BezierHeading headingMode, double holdHeadingRadiansPedro) {
         Pose start = follower.getPose();
         List<Pose> controls = new ArrayList<>();
         controls.add(start.copy());
@@ -222,11 +279,12 @@ public class PedroDrive {
             path = new Path(new BezierCurve(controls));
         }
 
-        if (setHeading) {
-            path.setLinearHeadingInterpolation(start.getHeading(), endHeadingRadiansPedro);
+        if (headingMode == BezierHeading.TANGENT) {
+            path.setTangentHeadingInterpolation();
+        } else if (headingMode == BezierHeading.HOLD
+                && !Double.isNaN(holdHeadingRadiansPedro)) {
+            path.setConstantHeadingInterpolation(holdHeadingRadiansPedro);
         } else {
-            // Always hold start heading when not explicitly rotating.
-            // (Previously end.heading != 0 triggered linear interp; default Path heading is tangent.)
             path.setConstantHeadingInterpolation(start.getHeading());
         }
         follow(path);
@@ -253,7 +311,7 @@ public class PedroDrive {
 
         PathChain chain = builder.build();
         if (useTimeOptimal) {
-            follower.followPathChainTimeOptimal(chain);
+            follower.followPathChainTimeOptimal(chain, settleEnd);
         } else {
             follower.followPath(chain, holdEnd);
         }
@@ -268,7 +326,7 @@ public class PedroDrive {
                 .addPath(path)
                 .build();
         if (timeOptimal) {
-            follower.followPathChainTimeOptimal(chain);
+            follower.followPathChainTimeOptimal(chain, settleEnd);
         } else {
             follower.followPath(chain, holdEnd);
         }
@@ -382,31 +440,31 @@ public class PedroDrive {
                     start.getY() + inches * fy,
                     h
             );
-            drive.startBezier(Arrays.asList(c1, c2, end), false, Double.NaN);
+            drive.startBezier(Arrays.asList(c1, c2, end), BezierHeading.HOLD_START, Double.NaN);
         }
     }
 
     private static final class BezierDriveCommand extends FollowDriveCommand {
         private final List<Pose> poses;
-        private final boolean setHeading;
-        private final double endHeadingRadiansPedro;
+        private final BezierHeading headingMode;
+        private final double holdHeadingRadiansPedro;
 
         BezierDriveCommand(
                 PedroDrive drive,
                 List<Pose> poses,
-                boolean setHeading,
-                double endHeadingRadiansPedro,
+                BezierHeading headingMode,
+                double holdHeadingRadiansPedro,
                 Marker... markers
         ) {
             super(drive, markers);
             this.poses = poses;
-            this.setHeading = setHeading;
-            this.endHeadingRadiansPedro = endHeadingRadiansPedro;
+            this.headingMode = headingMode == null ? BezierHeading.HOLD_START : headingMode;
+            this.holdHeadingRadiansPedro = holdHeadingRadiansPedro;
         }
 
         @Override
         public void initialize() {
-            drive.startBezier(poses, setHeading, endHeadingRadiansPedro);
+            drive.startBezier(poses, headingMode, holdHeadingRadiansPedro);
         }
     }
 

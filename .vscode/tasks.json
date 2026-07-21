@@ -1,0 +1,28 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "FTC: Connect Robot",
+        "type": "shell",
+        "command": "adb",
+        "args": [
+          "connect",
+          "192.168.43.1:5555"
+        ],
+        "problemMatcher": []
+      },
+      {
+        "label": "FTC: Build + Install",
+        "type": "shell",
+        "command": "./gradlew",
+        "args": [
+          "installDebug"
+        ],
+        "dependsOn": [
+          "FTC: Connect Robot"
+        ],
+        "dependsOrder": "sequence",
+        "problemMatcher": []
+      }
+    ]
+  }

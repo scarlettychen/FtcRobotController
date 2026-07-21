@@ -4,6 +4,7 @@ import com.pedropathing.auto.AlliancePoses;
 import com.pedropathing.auto.AutoCommand;
 import com.pedropathing.auto.AutoMode;
 import com.pedropathing.auto.FunctionalCommand;
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
 import org.firstinspires.ftc.teamcode.brainstem.BrainSTEMRobot;
 
@@ -30,20 +31,12 @@ public class CloseAuto extends AutoMode {
 
     @Override
     public void run() {
-        sequence(
-                robot.driveToCloseShoot(),
-
-                robot.collectFirstSpike(),
-                robot.driveToOpenGate(),
-                robot.driveToGoal(),
-
-
-                robot.collectSecondSpike(),
-                robot.driveToShootViaPass(),
-
-
-                robot.driveOffLine()
-        );
+        // Prefer high-level RobotActions in match code, e.g.:
+        // run(sequence(bot.tryCollect(), bot.safeAlign(), bot.tryScore()));
+        run(sequence(
+                drive.forwardDrive(24),
+                drive.turnTo(90)
+        ));
     }
 
     private AutoCommand waitBrief() {

@@ -653,8 +653,16 @@ public class Follower {
     /**
      * Follow a precomputed time-optimal {@link Trajectory} with predictive feedforward.
      * Prefer generating during init via {@link TimeOptimalTrajectoryGenerator#generate}.
+     * Does not settle at the end (mid-path flow).
      */
     public void followTrajectory(Trajectory trajectory) {
+        followTrajectory(trajectory, false);
+    }
+
+    /**
+     * @param settleAtEnd if true, hold end pose after the profile (last path of an auton).
+     */
+    public void followTrajectory(Trajectory trajectory, boolean settleAtEnd) {
         requireMotionModel();
         // Do not call full breakFollowing() here: it cancels an active trajectoryFollower
         // (finished=true, running=false) and can race with follow() on some loops.
@@ -668,7 +676,7 @@ public class Follower {
         drivetrain.breakFollowing();
         followingTrajectory = true;
         isBusy = true;
-        trajectoryFollower.follow(trajectory);
+        trajectoryFollower.follow(trajectory, settleAtEnd);
     }
 
     /**
@@ -676,14 +684,22 @@ public class Follower {
      * trajectory offline-style (may take a few ms — call from init if possible), then follow it.
      */
     public void followPathTimeOptimal(Path path) {
-        followTrajectory(TimeOptimalTrajectoryGenerator.generate(path, requireMotionModel()));
+        followPathTimeOptimal(path, false);
+    }
+
+    public void followPathTimeOptimal(Path path, boolean settleAtEnd) {
+        followTrajectory(TimeOptimalTrajectoryGenerator.generate(path, requireMotionModel()), settleAtEnd);
     }
 
     /**
      * Same as {@link #followPathTimeOptimal(Path)} for a full {@link PathChain}.
      */
     public void followPathChainTimeOptimal(PathChain chain) {
-        followTrajectory(TimeOptimalTrajectoryGenerator.generate(chain, requireMotionModel()));
+        followPathChainTimeOptimal(chain, false);
+    }
+
+    public void followPathChainTimeOptimal(PathChain chain, boolean settleAtEnd) {
+        followTrajectory(TimeOptimalTrajectoryGenerator.generate(chain, requireMotionModel()), settleAtEnd);
     }
 
     public boolean isFollowingTrajectory() {

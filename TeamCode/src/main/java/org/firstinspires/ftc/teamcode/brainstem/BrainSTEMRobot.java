@@ -109,13 +109,21 @@ public class BrainSTEMRobot {
     /**
      * Apply an auton-specific start pose ({@code x, y, headingDegrees}) before start.
      * Updates Pinpoint and Pedro's pose feed together.
+     *
+     * <p>Uses {@link PinpointLocalizer#setPose} (absolute), not {@code setStartPose}. Pinpoint's
+     * {@code setStartPose} rebases relative to the previous start and corrupts XY when called
+     * after construction (e.g. {@code (72,72)} → {@code (216,72)}).
      */
     public void setStartPose(double[] startPose) {
         Pose pose = AlliancePoses.toPose(startPose);
-        pinpoint.setStartPose(pose);
+        // Absolute stamp — do not call pinpoint.setStartPose (rebase math).
+        pinpoint.setPose(pose);
         pedroPoseFeed.setStartPose(pose);
         follower.setStartingPose(pose);
         syncPinpointIntoPedro();
+        if (follower.getPoseTracker() != null) {
+            follower.getPoseTracker().invalidateCache();
+        }
     }
 
     public void syncPose(double x, double y, double headingRad,

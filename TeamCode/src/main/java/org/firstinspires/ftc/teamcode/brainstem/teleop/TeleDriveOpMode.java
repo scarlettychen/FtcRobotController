@@ -56,9 +56,10 @@ public class TeleDriveOpMode extends LinearOpMode {
                 robotCentric = false;
             }
             if (optionsPressed() && !optionsWasPressed) {
-                Pose pose = robot.pinpoint.getPose();
-                robot.pinpoint.setStartPose(new Pose(pose.getX(), pose.getY(), 0));
-                robot.follower.setStartingPose(new Pose(pose.getX(), pose.getY(), 0));
+                // Absolute stamp — setStartPose rebases and corrupts XY on repeat presses.
+                Pose zeroed = new Pose(robot.pinpoint.getPose().getX(), robot.pinpoint.getPose().getY(), 0);
+                robot.pinpoint.setPose(zeroed);
+                robot.follower.setStartingPose(zeroed);
             }
             aWasPressed = gamepad1.a;
             bWasPressed = gamepad1.b;

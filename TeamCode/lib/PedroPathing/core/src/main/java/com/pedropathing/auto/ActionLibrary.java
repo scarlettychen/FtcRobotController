@@ -118,6 +118,10 @@ public abstract class ActionLibrary {
         return drive.bezierDrive(poseArrays);
     }
 
+    protected AutoCommand bezierDriveTangent(double[]... poseArrays) {
+        return drive.bezierDriveTangent(poseArrays);
+    }
+
     protected AutoCommand bezierDrive(Pose... controlAndEndPoses) {
         return drive.bezierDrive(controlAndEndPoses);
     }
@@ -195,6 +199,67 @@ public abstract class ActionLibrary {
 
     public AutoCommand parallel(AutoCommand... commands) {
         return new CommandGroups.Parallel(commands);
+    }
+
+    /**
+     * Evaluate {@code condition} once at command initialize, then run {@code onTrue} or
+     * {@code onFalse}. The unused branch is never initialized.
+     *
+     * <pre>{@code
+     * conditional(robot::hasGamePiece, scoreGamePiece(), retryIntake());
+     * }</pre>
+     */
+    public AutoCommand conditional(
+            BooleanSupplier condition,
+            AutoCommand onTrue,
+            AutoCommand onFalse
+    ) {
+        return ConditionalCommand.conditional(condition, onTrue, onFalse);
+    }
+
+    /**
+     * Run a fresh command from {@code command} up to {@code maxAttempts} times until
+     * {@code successCondition} is true after an attempt ends. If all attempts fail, finishes
+     * anyway so the auton continues.
+     *
+     * <pre>{@code
+     * retry(() -> intakePixel(), robot::hasPixel, 2);
+     * }</pre>
+     */
+    public AutoCommand retry(
+            Supplier<AutoCommand> command,
+            BooleanSupplier successCondition,
+            int maxAttempts
+    ) {
+        return RetryCommand.retry(command, successCondition, maxAttempts);
+    }
+
+    /**
+     * Check {@code condition} once at initialize; run {@code onSuccess} or {@code onFailure}.
+     * Logs {@code Validation: PASS} / {@code FAILED}. Only the selected branch starts.
+     *
+     * <pre>{@code
+     * validate(robot::hasGamePiece, continueScoring(), retryIntake());
+     * }</pre>
+     */
+    public AutoCommand validate(
+            BooleanSupplier condition,
+            AutoCommand onSuccess,
+            AutoCommand onFailure
+    ) {
+        return ValidationCommand.validate(condition, onSuccess, onFailure);
+    }
+
+    /**
+     * Wait until {@code condition} is true or {@code timeoutSeconds} elapses.
+     * Logs {@code PASS} or {@code TIMEOUT}; always finishes so the auton continues.
+     *
+     * <pre>{@code
+     * waitUntilValidated(shooter::isAtVelocity, 1.5);
+     * }</pre>
+     */
+    public AutoCommand waitUntilValidated(BooleanSupplier condition, double timeoutSeconds) {
+        return ValidationCommand.waitUntilValidated(condition, timeoutSeconds);
     }
 
     /**
