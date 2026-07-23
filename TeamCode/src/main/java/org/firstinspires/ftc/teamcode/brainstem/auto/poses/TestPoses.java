@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.brainstem.auto.poses;
 
-/** Smoke-test coordinates: origin start, +5 inches in X. */
+// smoke test coords: origin start, +5 in x
 public class TestPoses extends RobotPoses {
     public final double[] forwardFive = xyz(5, 0, 0);
 

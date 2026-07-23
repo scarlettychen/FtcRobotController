@@ -1,13 +1,6 @@
 package org.firstinspires.ftc.teamcode.brainstem.auto.poses;
 
-import com.pedropathing.auto.AlliancePoses;
-
-/**
- * Team-owned named field locations.
- *
- * <p>Add every new named pose needed by {@code RobotActions} here, then fill it in for each
- * alliance subclass. Pedro's generic {@link AlliancePoses} intentionally knows only the start.
- */
+// named spots on the field for robotactions
 public abstract class RobotPoses extends AlliancePoses {
     public double[] lookAtOb = xyz(0, 0, 0);
     public double[] openGatePos = xyz(0, 0, 0);

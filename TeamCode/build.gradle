@@ -30,5 +30,6 @@ android {
 
 dependencies {
     implementation project(':PedroPathing:ftc')
+    implementation project(':Ivy')
     implementation project(':FtcRobotController')
 }

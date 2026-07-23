@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.brainstem.auto.poses;
 
-/** Team-editable Blue close field coordinates (inches / degrees). */
+// blue close field coords — edit these
 public class BlueClosePoses extends RobotPoses {
     public BlueClosePoses() {
         start = xyz(-65, -41.75, 0);

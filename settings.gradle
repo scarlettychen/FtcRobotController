@@ -19,8 +19,10 @@ dependencyResolutionManagement {
 include ':FtcRobotController'
 include ':TeamCode'
 
+include ':Ivy'
 include ':PedroPathing:core'
 include ':PedroPathing:ftc'
 
+project(':Ivy').projectDir = file('TeamCode/lib/Ivy')
 project(':PedroPathing:core').projectDir = file('TeamCode/lib/PedroPathing/core')
 project(':PedroPathing:ftc').projectDir = file('TeamCode/lib/PedroPathing/ftc')

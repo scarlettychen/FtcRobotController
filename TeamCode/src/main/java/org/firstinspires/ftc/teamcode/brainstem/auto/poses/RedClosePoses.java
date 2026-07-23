@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.brainstem.auto.poses;
 
-/** Team-editable Red close coordinates; mirror/tune independently of Blue. */
+// red close coords — tune separately from blue
 public class RedClosePoses extends RobotPoses {
     public RedClosePoses() {
         start = xyz(-65, 41.75, 0);

@@ -6,13 +6,12 @@ Everything your team normally edits is under this `brainstem` folder:
 - `RobotModel.java` — physical/time-optimal tuning
 - `BrainSTEMRobot.java` — hardware fields, Pinpoint ownership, pose sync, robot loop
 - `subsystems/` — subsystem implementations
-- `auto/RobotActions.java` — named drive and subsystem commands
+- `auto/RobotActions.java` — named poses + Pedro drive starts (imperative)
+- `auto/AutoCommands.java` — Ivy subsystem commands only
 - `auto/poses/` — field coordinates
-- `auto/*Auto.java` — autonomous sequences
-- `auto/*OpMode.java` — FTC lifecycle and loop ownership
+- `auto/*OpMode.java` — FTC lifecycle: start path → `drive.update()` until done
 
-The Pedro library contains reusable framework code. Do not add team subsystem commands or
-match coordinates there.
+Pedro Pathing exposes drive only: `PedroDrive` (no Ivy). Ivy is TeamCode-only for mechanisms.
 
 ## 0. How pose / distance is measured
 
@@ -74,15 +73,15 @@ public final class Shooter implements Component {
 4. Add named commands in `RobotActions`:
 
 ```java
-public AutoCommand shooterOnClose() {
+public Command shooterOnClose() {
     return run(() -> robot.shooter.shootClose());
 }
 
-public AutoCommand waitForShooter() {
+public Command waitForShooter() {
     return waitUntil(() -> robot.shooter.atSpeed());
 }
 
-public AutoCommand shooterOnAndReady() {
+public Command shooterOnAndReady() {
     return runThenWait(
             () -> robot.shooter.shootClose(),
             () -> robot.shooter.atSpeed()
@@ -118,14 +117,14 @@ Waypoints and markers are different:
 Add these to `RobotActions`. Autos should call the names, not raw coordinates.
 
 ```java
-public AutoCommand driveToScore() {
+public Command driveToScore() {
     return lineDrive(() -> {
         precision();
         return poses().close1Shooting;
     });
 }
 
-public AutoCommand collectCycle() {
+public Command collectCycle() {
     return pathDrive(
             () -> {
                 loaded();
@@ -171,8 +170,11 @@ Available inside `RobotActions`:
 - `waitSeconds(seconds)` — wall-clock delay
 - `waitUntil(BooleanSupplier)` — finishes when condition is true
 - `runThenWait(start, finished)` — run once, then wait until ready
-- `sequence(AutoCommand...)` — commands one after another
-- `parallel(AutoCommand...)` — all commands together; finishes when all finish
+- `sequence(Command...)` — commands one after another
+- `parallel(Command...)` — all together; finishes when <em>all</em> finish
+- `driveWith(drive, alongside...)` — path + other actions together; finishes when the
+  <em>path</em> finishes (mechanisms can run during the drive without blocking it)
+- `alongWith(...)` — alias for `parallel`
 - `conditional(condition, onTrue, onFalse)` — branch once at initialize
 - `retry(supplier, success, maxAttempts)` — fresh command per attempt until success
 - `validate(condition, onSuccess, onFailure)` — validation branch with PASS/FAILED log
@@ -180,9 +182,9 @@ Available inside `RobotActions`:
 
 Low-level `FunctionalCommand` helpers are also available:
 
-- `FunctionalCommand.instant(action)`
-- `FunctionalCommand.waitSeconds(seconds)`
-- `FunctionalCommand.runUntil(executeEachLoop, finished)`
+- `Commands.instant(action)`
+- `ControlFlow.waitSeconds(seconds)`
+- `Commands.waitUntil / Command.build()`
 - constructor `(onInit, onExecute, finished, onEnd)`
 
 ### High-level resilient actions (use these in match autos)
@@ -267,58 +269,53 @@ Validation:
 ```
 
 or `FAILED` / `TIMEOUT`.
-## 6. Write an AutoMode auton
+## 6. Write an OpMode auton (Ivy)
 
-Each auton owns its start pose. Override `getStartPose()`:
+Keep sequencing in the OpMode. No AutoMode class — fewer files to sift when something breaks.
 
 ```java
-public final class MyAuto extends AutoMode {
-    private static final double[] BLUE_START = AlliancePoses.xyz(-65, -41.75, 0);
-    private static final double[] RED_START = AlliancePoses.xyz(-65, 41.75, 0);
-    private final RobotActions bot;
-
-    public MyAuto(BrainSTEMRobot robot, RobotActions bot) {
-        super(robot.follower, bot);
-        this.bot = bot;
-    }
-
+@Autonomous(name = "My Auto")
+public class MyAutoOpMode extends LinearOpMode {
     @Override
-    public double[] getStartPose() {
-        return isRed() ? RED_START : BLUE_START;
-    }
+    public void runOpMode() {
+        BrainSTEMRobot robot = new BrainSTEMRobot(hardwareMap, telemetry, this);
+        RobotActions bot = new RobotActions(robot);
+        bot.getDrive().setExternalLoop(true);
 
-    @Override
-    public void run() {
-        run(sequence(
-                parallel(bot.shooterTurnOnClose(), bot.driveToGoal()),
-                bot.waitSeconds(0.2),
-                bot.moveSpindexer360(),
-                bot.collectFirstSpike()
-        ));
+        // alliance select during init...
+        waitForStart();
+        if (isStopRequested()) return;
+
+        robot.setStartPose(bot.poses().start);
+        Command root = bot.sequence(
+                bot.driveToGoal(),
+                bot.waitSeconds(0.2) // use ControlFlow.waitSeconds via a helper if needed
+        );
+        // Prefer:
+        // Command root = sequential(bot.driveToGoal(), waitMs(200));
+
+        Scheduler.reset();
+        Scheduler.schedule(root);
+        while (opModeIsActive() && Scheduler.isScheduled(root)) {
+            robot.update();
+            Scheduler.execute();
+            telemetry.update();
+        }
+        Scheduler.cancel(root);
+        Scheduler.reset();
+        robot.follower.breakFollowing();
     }
 }
 ```
 
-`AutoMode.start()` applies `getStartPose()` before building/scheduling commands. This lets every
-auton have a different start without putting an auton inside `BrainSTEMRobot`.
-
-`AutoMode` functions:
-
-- `setAlliance(red)`
-- `setExternalLoop(true)` — use when BrainSTEM supplies pose/loop ownership
-- `getStartPose()` — override per auton
-- `start()` — apply start, build root sequence, schedule it
-- `update()` — call every active loop
-- `isFinished()`
-- `stop()` — cancel and break following
-- inside `run()`: `run(sequence(...))`, `parallel(...)`, `schedule(...)`, `conditional(...)`,
-  `retry(...)`, `validate(...)`, `waitUntilValidated(...)`
+Named actions live in `RobotActions`. Composition helpers live in `ControlFlow` or Ivy
+`Groups` / `Commands`. Pedro only supplies `PedroDrive` path commands.
 
 ## 7. Own the auton from an OpMode
 
 ```java
 BrainSTEMRobot robot = new BrainSTEMRobot(hardwareMap, telemetry, this);
-RobotActions actions = PedroGuide.createActions(robot);
+RobotActions actions = new RobotActions(robot);
 actions.setAlliance(isRed);
 
 MyAuto auto = new MyAuto(robot, actions);
@@ -347,46 +344,29 @@ When an external localizer owns pose, initialize/reset that localizer to the sam
 
 ## 8. Schedule one command directly
 
-For tests or short routines:
-
 ```java
-AutoScheduler scheduler = new AutoScheduler();
-AutoCommand command = actions.driveToGoal();
-
-waitForStart();
-scheduler.schedule(command);
-
-while (opModeIsActive() && scheduler.isRunning()) {
+Command move = drive.forwardDrive(48);
+Scheduler.reset();
+Scheduler.schedule(move);
+while (opModeIsActive() && Scheduler.isScheduled(move)) {
     robot.update();
-    scheduler.run();
-    telemetry.update();
+    Scheduler.execute();
 }
-
-scheduler.cancel();
+Scheduler.cancel(move);
+Scheduler.reset();
 robot.follower.breakFollowing();
 ```
 
-`AutoScheduler` functions:
-
-- `schedule(command)` — ends/replaces any current command
-- `run()` — initialize once, execute each loop, end when finished
-- `cancel()`
-- `isRunning()`
-- `isFinished()`
+Ivy: `Scheduler.schedule` / `execute` / `cancel` / `reset` / `isScheduled`.
+Compositions: `Groups.sequential`, `parallel`, `deadline`, or `ControlFlow.*`.
 
 ## 9. BrainSTEMRobot functions
 
-- constructors — create hardware/follower/model only; no auton
-- `addSubsystem(Component)`
-- `getSubsystems()`
-- `setAlliance(red)` — robot flag only; also set alliance on actions/auto
-- `setStartPose(double[])` — apply an auton-specific `{x,y,headingDegrees}` pose
-- `syncPose(x,y,headingRad)`
-- `syncPose(x,y,headingRad,vx,vy,omega)`
-- `syncPose(...,localizationConfidence)`
-- `update()` — bridge then every subsystem
-- `updateWithTelemetry()`
-- `reset()`
+- constructor `(hardwareMap, telemetry, opMode)` — one only; starts at field origin
+- `setStartPose(double[])` — match autos only (`{x,y,headingDegrees}`)
+- `setAlliance(red)`
+- `addSubsystem(Component)` / `getSubsystems()`
+- `update()` / `reset()`
 
 ## 10. PedroDrive low-level functions
 

@@ -1,7 +1,5 @@
 package org.firstinspires.ftc.teamcode.brainstem;
 
-import com.pedropathing.auto.AlliancePoses;
-import com.pedropathing.auto.PedroBrainSTEMBridge;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.ftc.localization.localizers.PinpointLocalizer;
 import com.pedropathing.geometry.Pose;
@@ -11,20 +9,21 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.brainstem.auto.poses.AlliancePoses;
+import org.firstinspires.ftc.teamcode.brainstem.subsystems.Blocker;
+import org.firstinspires.ftc.teamcode.brainstem.subsystems.Drive;
+import org.firstinspires.ftc.teamcode.brainstem.subsystems.FourBarLinkage;
+import org.firstinspires.ftc.teamcode.brainstem.subsystems.Intake;
+import org.firstinspires.ftc.teamcode.brainstem.subsystems.Limelight;
+import org.firstinspires.ftc.teamcode.brainstem.subsystems.Transfer;
+import org.firstinspires.ftc.teamcode.brainstem.utils.BatteryVoltageFilter;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * Team-owned BrainSTEM robot shell.
- *
- * <p>Owns hardware, Pinpoint odometry, model, pose synchronization, and subsystem ticks.
- * It never creates, schedules, starts, or stops an auton; the OpMode owns that lifecycle.
- *
- * <p>Each {@link #update()} reads Pinpoint and pushes pose/velocity into Pedro's
- * {@link ExternalPoseLocalizer}, which is how the follower knows how far the robot traveled.
- */
+// the big robot class. hardware + pinpoint + pedro + subsystems
+// make one of these in ur opmode, call update() every loop
 public class BrainSTEMRobot {
     public final OpMode opMode;
     public final Telemetry telemetry;
@@ -37,59 +36,49 @@ public class BrainSTEMRobot {
     public final Follower follower;
     public final PedroBrainSTEMBridge pedro;
 
+    public final Intake intake;
+    public final Transfer transfer;
+    public final FourBarLinkage lift;
+    public final Blocker blocker;
+    public final Limelight limelight;
+    public final Drive drive;
+
     public boolean red;
 
     private final List<Component> subsystems = new ArrayList<>();
+    private final BatteryVoltageFilter batteryFilter;
 
     public BrainSTEMRobot(HardwareMap hardwareMap, Telemetry telemetry, OpMode opMode) {
-        this(hardwareMap, telemetry, opMode, 0, 0, 0, new RobotConfiguration());
-    }
-
-    public BrainSTEMRobot(
-            HardwareMap hardwareMap,
-            Telemetry telemetry,
-            OpMode opMode,
-            double startX,
-            double startY,
-            double startHeadingRad
-    ) {
-        this(hardwareMap, telemetry, opMode, startX, startY, startHeadingRad,
-                new RobotConfiguration());
-    }
-
-    public BrainSTEMRobot(
-            HardwareMap hardwareMap,
-            Telemetry telemetry,
-            OpMode opMode,
-            double startX,
-            double startY,
-            double startHeadingRad,
-            RobotConfiguration configuration
-    ) {
         this.hardwareMap = hardwareMap;
         this.telemetry = telemetry;
         this.opMode = opMode;
-        this.configuration = configuration;
+        this.configuration = new RobotConfiguration();
         this.robotModel = configuration.createRobotModel();
 
-        pedro = PedroGuide.createBridge(
-                hardwareMap,
-                startX,
-                startY,
-                startHeadingRad,
-                configuration,
-                robotModel
-        );
+        pedro = PedroGuide.createBridge(hardwareMap, configuration, robotModel);
         follower = pedro.getFollower();
         pedroPoseFeed = pedro.getPoseFeed();
 
-        Pose startPose = Pose.fromField(startX, startY, startHeadingRad);
+        Pose origin = Pose.fromField(0, 0, 0);
         pinpoint = new PinpointLocalizer(
                 hardwareMap,
                 configuration.createPinpointConstants(),
-                startPose
+                origin
         );
         syncPinpointIntoPedro();
+
+        batteryFilter = new BatteryVoltageFilter(hardwareMap);
+
+        intake = new Intake(hardwareMap, telemetry);
+        transfer = new Transfer(hardwareMap, telemetry);
+        lift = new FourBarLinkage(hardwareMap, telemetry);
+        blocker = new Blocker(hardwareMap, telemetry);
+        limelight = new Limelight(hardwareMap, telemetry);
+        drive = new Drive(hardwareMap, configuration);
+        addSubsystem(transfer);
+        addSubsystem(lift);
+        addSubsystem(blocker);
+        addSubsystem(limelight);
     }
 
     public void addSubsystem(Component component) {
@@ -106,17 +95,10 @@ public class BrainSTEMRobot {
         this.red = red;
     }
 
-    /**
-     * Apply an auton-specific start pose ({@code x, y, headingDegrees}) before start.
-     * Updates Pinpoint and Pedro's pose feed together.
-     *
-     * <p>Uses {@link PinpointLocalizer#setPose} (absolute), not {@code setStartPose}. Pinpoint's
-     * {@code setStartPose} rebases relative to the previous start and corrupts XY when called
-     * after construction (e.g. {@code (72,72)} → {@code (216,72)}).
-     */
+    // set match start as {x, y, headingDeg}. skip this on simple drive tests
+    // (field 0° vs pedro 90° gets spicy otherwise)
     public void setStartPose(double[] startPose) {
         Pose pose = AlliancePoses.toPose(startPose);
-        // Absolute stamp — do not call pinpoint.setStartPose (rebase math).
         pinpoint.setPose(pose);
         pedroPoseFeed.setStartPose(pose);
         follower.setStartingPose(pose);
@@ -126,48 +108,19 @@ public class BrainSTEMRobot {
         }
     }
 
-    public void syncPose(double x, double y, double headingRad,
-                         double vx, double vy, double omega) {
-        pedro.syncPoseFromRobot(x, y, headingRad, vx, vy, omega);
-    }
-
-    public void syncPose(double x, double y, double headingRad,
-                         double vx, double vy, double omega,
-                         double localizationConfidence) {
-        pedro.syncPoseFromRobot(
-                x, y, headingRad, vx, vy, omega, localizationConfidence);
-    }
-
-    public void syncPose(double x, double y, double headingRad) {
-        pedro.syncPoseFromRobot(x, y, headingRad, 0, 0, 0);
-    }
-
-    /**
-     * One robot loop tick: Pinpoint → Pedro pose feed → bridge/subsystems.
-     * Call this every OpMode loop while following.
-     */
+    // one loop: pinpoint → pedro → subsystems
     public void update() {
         pinpoint.update();
         syncPinpointIntoPedro();
-        // Pinpoint wrote ExternalPoseLocalizer outside PoseTracker.update(); drop the
-        // cached pose so path baking / following see the live Pinpoint heading/XY.
-        if (follower != null && follower.getPoseTracker() != null) {
+        if (follower.getPoseTracker() != null) {
             follower.getPoseTracker().invalidateCache();
         }
+
+        
         pedro.update();
+
         for (Component component : subsystems) {
             component.update();
-        }
-    }
-
-    public void updateWithTelemetry() {
-        update();
-        if (telemetry != null) {
-            Pose pose = pinpoint.getPose();
-            telemetry.addData("pinpoint x", pose.getX());
-            telemetry.addData("pinpoint y", pose.getY());
-            telemetry.addData("pinpoint h deg", Math.toDegrees(pose.getHeading()));
-            telemetry.update();
         }
     }
 
@@ -178,7 +131,6 @@ public class BrainSTEMRobot {
         }
     }
 
-    /** Copy Pinpoint's Pedro-frame pose/velocity into the ExternalPoseLocalizer. */
     private void syncPinpointIntoPedro() {
         Pose pose = pinpoint.getPose();
         Pose velocity = pinpoint.getVelocity();

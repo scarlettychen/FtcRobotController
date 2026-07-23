@@ -10,11 +10,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
-/**
- * Team-editable Pedro hardware and motion configuration.
- *
- * <p>This is the first file to edit for motor names/directions and physical motion tuning.
- */
+// pedro hardware + motion knobs. edit this first for motor names / directions
 public class RobotConfiguration {
 
     public FollowerConstants createFollowerConstants() {
@@ -22,24 +18,20 @@ public class RobotConfiguration {
     }
 
     public MecanumConstants createMecanumConstants() {
-        // Directions match this robot's wiring (verified with forwardDrive).
-        // If "forward" becomes a strafe after a motor swap, restore Pedro-style
-        // left=REVERSE / right=FORWARD and re-check.
+        // directions match how we wired this bot
         return new MecanumConstants()
-                .leftFrontMotorName("frontLeftMotor")
-                .leftRearMotorName("backLeftMotor")
-                .rightFrontMotorName("frontRightMotor")
-                .rightRearMotorName("backRightMotor")
+                .leftFrontMotorName("FL")
+                .leftRearMotorName("BL")
+                .rightFrontMotorName("FR")
+                .rightRearMotorName("BR")
                 .leftFrontMotorDirection(DcMotorSimple.Direction.FORWARD)
                 .leftRearMotorDirection(DcMotorSimple.Direction.FORWARD)
-                .rightFrontMotorDirection(DcMotorSimple.Direction.FORWARD)
+                .rightFrontMotorDirection(DcMotorSimple.Direction.REVERSE)
                 .rightRearMotorDirection(DcMotorSimple.Direction.REVERSE);
     }
 
-    /**
-     * goBILDA Pinpoint settings. Hardware map name must match the RC config device name.
-     * Offsets match the Decode robot (mm from center).
-     */
+    // pinpoint settings. hwmap name gotta match the rc config
+    // offsets are mm from center (decode bot)
     public PinpointConstants createPinpointConstants() {
         return new PinpointConstants()
                 .hardwareMapName("odo")
@@ -62,17 +54,16 @@ public class RobotConfiguration {
                 .maxDeceleration(100.0)
                 .maxAngularVelocity(6.0)
                 .maxAngularAcceleration(20.0)
-                .feedforward(0.05, 0.17, 0.003);
+                .feedforward(0.05, 0.18, 0.003);
     }
 
     public void configurePredictiveFollower(Follower follower) {
         PredictiveTrajectoryFollower predictive = follower.getTrajectoryFollower();
-
-        predictive.setGains(0.1, 0.015, 0.12, 0.8, 0.05);
+        predictive.setGains(0.15, 0.015, 0.0, 0.8, 0.05);
         predictive.kVOmega = 0.12;
         predictive.kAAlpha = 0.02;
         predictive.endCrossTrackBoost = 1.75;
-        predictive.crossMinPower = 0.18;
+        predictive.crossMinPower = 0.0;
         predictive.closestAheadInches = 3.0;
         predictive.settleHoldSeconds = 0.2;
     }

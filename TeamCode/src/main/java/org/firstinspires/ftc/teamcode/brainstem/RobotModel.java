@@ -2,12 +2,8 @@ package org.firstinspires.ftc.teamcode.brainstem;
 
 import com.pedropathing.model.MotionModel;
 
-/**
- * Team-owned drivetrain physics and time-optimal motion tuning.
- *
- * <p>Edit this file for your physical robot. Units are inches, seconds, radians, kilograms,
- * and volts unless noted. Pedro only consumes the {@link MotionModel} interface.
- */
+// drivetrain physics + motion tuning for our bot
+// edit for ur robot. inches/sec/rad/kg/volts. pedro just wants MotionModel
 public class RobotModel implements MotionModel {
     public double mass = 12.0;
     public double wheelRadius = 1.8898;

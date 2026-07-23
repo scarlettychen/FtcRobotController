@@ -171,14 +171,11 @@ public class PredictiveTrajectoryFollower {
             return;
         }
 
-        // --- Cruise: time-optimal FF + gated cross-track ---
+        // --- Cruise: same structure as working commit 73f0394 ---
         TrajectoryState timeSetpoint = trajectory.sampleByTime(t);
-        // Chord-cut guard: search window is mostly behind s*(t); only a few inches ahead.
+        // Symmetric window like 73f0394 (ahead=behind) for forwardDrive stability.
         TrajectoryState closest = trajectory.findClosestNear(
-                pose.getX(), pose.getY(),
-                timeSetpoint.s,
-                closestWindowInches,
-                closestAheadInches);
+                pose.getX(), pose.getY(), timeSetpoint.s, closestWindowInches);
         lastSetpoint = timeSetpoint;
         lastClosest = closest;
 
@@ -216,8 +213,10 @@ public class PredictiveTrajectoryFollower {
                 driveMag = Math.max(driveMag, 0.2);
             }
         }
+        if (Double.isNaN(driveMag)) driveMag = 0;
+        if (Double.isNaN(headingMag)) headingMag = 0;
 
-        // Cross-track: boost near path end so the return onto the chord has enough authority.
+        // Cross-track (optional boosts kept for bezier/pathDrive; kPCross=0 disables).
         double crossGain = kPCross;
         double crossCap = maxCrossPower;
         if (remainingS < endCrossTrackDistance) {
@@ -225,13 +224,9 @@ public class PredictiveTrajectoryFollower {
             crossCap = Math.min(0.7, maxCrossPower * endCrossTrackBoost);
         }
         double crossMag = clamp(crossGain * eCross, -crossCap, crossCap);
-        // Min-power sideways when clearly off the path (static friction).
         if (Math.abs(eCross) > crossMinErrorInches && Math.abs(crossMag) < crossMinPower) {
             crossMag = Math.copySign(crossMinPower, eCross);
         }
-
-        if (Double.isNaN(driveMag)) driveMag = 0;
-        if (Double.isNaN(headingMag)) headingMag = 0;
         if (Double.isNaN(crossMag)) crossMag = 0;
 
         Vector pathing = new Vector(driveMag, pathTheta);
