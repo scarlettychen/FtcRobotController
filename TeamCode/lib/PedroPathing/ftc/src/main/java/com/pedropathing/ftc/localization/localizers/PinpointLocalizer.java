@@ -110,6 +110,16 @@ public class PinpointLocalizer implements Localizer {
     }
 
     /**
+     * Hard-set the pose estimate and treat it as the new start (no offset rebase).
+     * Prefer this from TeamCode match init over {@link #setStartPose(Pose)}.
+     */
+    public void resetPose(Pose pose) {
+        setPose(pose);
+        this.startPose = pose;
+        totalHeading = 0;
+    }
+
+    /**
      * This sets the start pose. This alters the start position even if it is already set, compensating as needed.
      *
      * @param setStart the new start pose

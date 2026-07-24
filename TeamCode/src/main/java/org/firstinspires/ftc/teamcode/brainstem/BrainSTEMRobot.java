@@ -14,6 +14,7 @@ import org.firstinspires.ftc.teamcode.brainstem.subsystems.Blocker;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.Drive;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.FourBarLinkage;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.Intake;
+import org.firstinspires.ftc.teamcode.brainstem.subsystems.IntakeBeamBreak;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.Limelight;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.Transfer;
 import org.firstinspires.ftc.teamcode.brainstem.utils.BatteryVoltageFilter;
@@ -41,6 +42,7 @@ public class BrainSTEMRobot {
     public final FourBarLinkage lift;
     public final Blocker blocker;
     public final Limelight limelight;
+    public final IntakeBeamBreak intakeGate;
     public final Drive drive;
 
     public boolean red;
@@ -74,12 +76,14 @@ public class BrainSTEMRobot {
         lift = new FourBarLinkage(hardwareMap, telemetry);
         blocker = new Blocker(hardwareMap, telemetry);
         limelight = new Limelight(hardwareMap, telemetry);
+        intakeGate = new IntakeBeamBreak(hardwareMap, telemetry);
         drive = new Drive(hardwareMap, configuration);
         addSubsystem(intake);
         addSubsystem(transfer);
         addSubsystem(lift);
         addSubsystem(blocker);
         addSubsystem(limelight);
+        addSubsystem(intakeGate);
     }
 
     public void addSubsystem(Component component) {
@@ -96,11 +100,12 @@ public class BrainSTEMRobot {
         this.red = red;
     }
 
-    // set match start as {x, y, headingDeg}. skip this on simple drive tests
-    // (field 0° vs pedro 90° gets spicy otherwise)
+    // set match start as {x, y, headingDeg} in FieldCoords (0°=+Y into field, CCW+).
+    // skip on simple drive-forward tests if you want raw pedro (0,0,0).
     public void setStartPose(double[] startPose) {
         Pose pose = AlliancePoses.toPose(startPose);
-        pinpoint.setPose(pose);
+        // hard reset — Pinpoint.setStartPose() rebases and can corrupt XY if called twice
+        pinpoint.resetPose(pose);
         pedroPoseFeed.setStartPose(pose);
         follower.setStartingPose(pose);
         syncPinpointIntoPedro();

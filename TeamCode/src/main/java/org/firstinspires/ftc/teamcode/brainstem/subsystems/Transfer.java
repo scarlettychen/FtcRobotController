@@ -23,7 +23,7 @@ public class Transfer implements Component {
 
     private double power, prevPower;
 
-    public static double inPower = 0.7;
+    public static double inPower = 0.9;
     public static double outPower = -0.7;
 
     private TransferState transferState;

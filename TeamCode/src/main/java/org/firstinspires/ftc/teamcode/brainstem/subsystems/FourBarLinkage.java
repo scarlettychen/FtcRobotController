@@ -20,16 +20,15 @@ public class FourBarLinkage implements Component {
     // flip if pid says "up" but the arm goes down
     public static int MOTOR_SIGN = 1;
 
-    public static int HIGH_POS = 479;
+    public static int HIGH_POS = 510;
     public static int LOW_POS = 177;
     public static int DOWN_POS = 40;
 
     public static int ERROR_THRESHOLD = 20;
 
-    public static double PARACHUTE_POWER = -0.15;
+    public static double PARACHUTE_POWER = -0.005;
 
     public static double kP = 0.007, kI = 0.0, kD = 0.0005;
-    // hold power in the +encoder / raise direction (before MOTOR_SIGN)
     public static double kG = 0.2;
     public static double kS = 0.1;
 
@@ -117,7 +116,7 @@ public class FourBarLinkage implements Component {
                 goToTarget(current);
                 break;
             case DOWN:
-                // ease down; parachute is signed in motor-command space
+
                 if (current > DOWN_POS + ERROR_THRESHOLD) {
                     setPower(PARACHUTE_POWER);
                 } else {

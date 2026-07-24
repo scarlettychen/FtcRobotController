@@ -4,8 +4,10 @@ import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.CommandBuilder;
 import com.pedropathing.ivy.behaviors.EndCondition;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -17,7 +19,8 @@ import java.util.stream.Collectors;
  * @version 1.0
  */
 class Parallel extends CommandBuilder {
-    private final Map<Command, Boolean> commands = new HashMap<>();
+    private final List<Command> children;
+    private final Map<Command, Boolean> finished = new HashMap<>();
 
     /**
      * Constructs a new Parallel command group with the passed in commands
@@ -25,47 +28,59 @@ class Parallel extends CommandBuilder {
      * @param children the commands to run in parallel
      */
     public Parallel(Command... children) {
-        Arrays.stream(children).forEach(command -> commands.put(command, false));
+        this.children = new ArrayList<>(Arrays.asList(children));
+        for (Command command : this.children) {
+            finished.put(command, false);
+        }
 
         requiring(
-                Arrays.stream(children)
+                this.children.stream()
                         .flatMap(command -> command.requirements().stream())
                         .collect(Collectors.toSet())
         );
 
-        setPriority(Arrays.stream(children).mapToInt(Command::priority).max().orElse(0));
+        setPriority(this.children.stream().mapToInt(Command::priority).max().orElse(0));
 
         setExecute(() -> {
             if (done()) return;
 
-            commands.keySet().forEach(command -> {
-                if (commands.get(command)) return;
+            for (Command command : this.children) {
+                if (Boolean.TRUE.equals(finished.get(command))) {
+                    continue;
+                }
 
                 if (command.done()) {
                     command.end(EndCondition.NATURALLY);
-                    commands.put(command, true);
-                    return;
+                    finished.put(command, true);
+                    continue;
                 }
 
                 command.execute();
-            });
+            }
         });
 
         setEnd(endCondition -> {
-            commands.entrySet().stream()
-                    .filter(entry -> !entry.getValue())
-                    .forEach(command -> {
-                        command.getKey().end(endCondition);
-                    });
+            for (Command command : this.children) {
+                if (!Boolean.TRUE.equals(finished.get(command))) {
+                    command.end(endCondition);
+                }
+            }
         });
 
         setStart(() -> {
-            commands.forEach((command, done) -> {
-                commands.put(command, false);
+            for (Command command : this.children) {
+                finished.put(command, false);
                 command.start();
-            });
+            }
         });
 
-        setDone(() -> commands.values().stream().filter(done -> done).count() >= commands.size());
+        setDone(() -> {
+            for (Command command : this.children) {
+                if (!Boolean.TRUE.equals(finished.get(command))) {
+                    return false;
+                }
+            }
+            return true;
+        });
     }
 }

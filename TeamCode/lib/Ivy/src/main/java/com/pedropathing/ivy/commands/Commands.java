@@ -66,9 +66,15 @@ public final class Commands {
      * @return a new Instant command
      */
     public static CommandBuilder instant(Runnable r) {
+        // done() must stay false until start() runs — Parallel/Sequential end
+        // already-done children without calling start, which skipped side effects.
+        final boolean[] started = {false};
         return Command.build()
-                .setStart(r)
-                .setDone(() -> true);
+                .setStart(() -> {
+                    r.run();
+                    started[0] = true;
+                })
+                .setDone(() -> started[0]);
     }
 
     /**

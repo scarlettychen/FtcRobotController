@@ -9,4 +9,7 @@ public class HardwareNames {
     public static String blockerServo = "Blocker";
     public static String liftLeft = "Lift Left";
     public static String liftRight = "Lift Right";
+    /** Dual beam breaks across intake (facing each other). */
+    public static String intakeBeamA = "Intake Beam A";
+    public static String intakeBeamB = "Intake Beam B";
 }

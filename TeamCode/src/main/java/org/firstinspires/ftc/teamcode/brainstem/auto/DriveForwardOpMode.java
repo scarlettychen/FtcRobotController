@@ -1,12 +1,12 @@
 package org.firstinspires.ftc.teamcode.brainstem.auto;
 
 import com.pedropathing.auto.PedroDrive;
-import com.pedropathing.ftc.FTCCoordinates;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 import org.firstinspires.ftc.teamcode.brainstem.BrainSTEMRobot;
+import org.firstinspires.ftc.teamcode.brainstem.RoadRunnerCoordinates;
 
 @Autonomous(name = "Pedro Drive Forward", group = "Pedro")
 public class DriveForwardOpMode extends LinearOpMode {
@@ -35,7 +35,7 @@ public class DriveForwardOpMode extends LinearOpMode {
             drive.update();
 
             Pose pedro = robot.pinpoint.getPose();
-            Pose field = pedro.getAsCoordinateSystem(FTCCoordinates.INSTANCE);
+            Pose field = pedro.getAsCoordinateSystem(RoadRunnerCoordinates.INSTANCE);
             telemetry.addData("bake start", "(%.1f, %.1f, %.0f°)",
                     bakeStart.getX(), bakeStart.getY(), Math.toDegrees(bakeStart.getHeading()));
             telemetry.addData("fieldX", "%.2f", field.getX());

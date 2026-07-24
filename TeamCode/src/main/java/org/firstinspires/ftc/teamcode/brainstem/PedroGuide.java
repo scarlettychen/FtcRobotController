@@ -16,7 +16,8 @@ public final class PedroGuide {
             RobotConfiguration configuration,
             RobotModel robotModel
     ) {
-        PoseConverter.useFTCCoordinates();
+        // team field: 0° = +Y (into field), CCW+ (RoadRunnerCoordinates)
+        PoseConverter.setFieldCoordinateSystem(RoadRunnerCoordinates.INSTANCE);
         ExternalPoseLocalizer poseFeed = new ExternalPoseLocalizer();
         poseFeed.setStartPose(Pose.fromField(0, 0, 0));
         Follower follower = new Follower(

@@ -28,8 +28,8 @@ public class Intake implements Component {
 
     private double power, prevPower;
 
-    public static double inPower = 0.9;
-    public static double outPower = -0.9;
+    public static double inPower = 0.99;
+    public static double outPower = -0.99;
 
     private IntakeState intakeState;
 

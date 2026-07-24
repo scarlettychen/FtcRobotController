@@ -132,6 +132,23 @@ public class PedroDrive {
         ));
     }
 
+    /**
+     * Strafe along live Pedro heading (positive = left). Settle forced off for this path.
+     */
+    public void strafeDrive(double inches, Marker... markers) {
+        beginMarkers(markers);
+        restoreSettleAfterPath = settleEnd;
+        settleEnd = false;
+        Pose start = follower.getPose();
+        double h = start.getHeading();
+        // left is +90° from forward: (-sin h, cos h)
+        startLine(new Pose(
+                start.getX() + inches * -Math.sin(h),
+                start.getY() + inches * Math.cos(h),
+                h
+        ));
+    }
+
     public void bezierForwardDrive(double inches, double sideOffsetInches, Marker... markers) {
         beginMarkers(markers);
         Pose start = follower.getPose();

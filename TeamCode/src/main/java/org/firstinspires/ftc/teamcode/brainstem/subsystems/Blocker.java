@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode.brainstem.subsystems;
 
 import com.bylazar.configurables.annotations.Configurable;
-import com.pedropathing.ftc.FTCCoordinates;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.util.Component;
 import com.qualcomm.robotcore.hardware.HardwareMap;
@@ -9,6 +8,8 @@ import com.qualcomm.robotcore.hardware.PwmControl;
 import com.qualcomm.robotcore.hardware.ServoImplEx;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.brainstem.FieldCoords;
+import org.firstinspires.ftc.teamcode.brainstem.RoadRunnerCoordinates;
 import org.firstinspires.ftc.teamcode.brainstem.utils.HardwareNames;
 
 @Configurable
@@ -58,18 +59,16 @@ public class Blocker implements Component {
     }
 
     // blocker field pose in rr inches
-    // rr axes are flipped vs naive robot frame so we swap the x/y deltas. trust
     public Pose blockerFieldPose(Pose robotPedroPose) {
-        Pose field = robotPedroPose.getAsCoordinateSystem(FTCCoordinates.INSTANCE);
-        double h = field.getHeading();
-        double cos = Math.cos(h);
-        double sin = Math.sin(h);
-        // robot frame +fwd/+left → swap onto rr x/y
-        double alongHeading = OFFSET_FORWARD_IN * cos - OFFSET_LEFT_IN * sin;
-        double acrossHeading = OFFSET_FORWARD_IN * sin + OFFSET_LEFT_IN * cos;
-        double x = field.getX() + acrossHeading;
-        double y = field.getY() + alongHeading;
-        return new Pose(x, y, h);
+        Pose field = robotPedroPose.getAsCoordinateSystem(RoadRunnerCoordinates.INSTANCE);
+        // team 0° = +Y CCW; body→field uses standard 0=+X frame
+        double hCcw = FieldCoords.ccwRadians(field.getHeading());
+        double cos = Math.cos(hCcw);
+        double sin = Math.sin(hCcw);
+        // robot +fwd/+left → rr field (0° = +x)
+        double x = field.getX() + OFFSET_FORWARD_IN * cos - OFFSET_LEFT_IN * sin;
+        double y = field.getY() + OFFSET_FORWARD_IN * sin + OFFSET_LEFT_IN * cos;
+        return new Pose(x, y, field.getHeading(), RoadRunnerCoordinates.INSTANCE);
     }
 
     // true if the blocker (not robot center) is inside the goal box

@@ -40,7 +40,7 @@ public class RobotConfiguration {
                 .strafePodX(71.718)
                 .customEncoderResolution(19.894)
                 .forwardEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD)
-                .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD);
+                .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED);
     }
 
     public RobotModel createRobotModel() {

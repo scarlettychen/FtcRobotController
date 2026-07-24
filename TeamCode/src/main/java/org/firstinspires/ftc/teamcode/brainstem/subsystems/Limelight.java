@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode.brainstem.subsystems;
 
 import com.bylazar.configurables.annotations.Configurable;
-import com.pedropathing.ftc.FTCCoordinates;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.util.Component;
 import com.qualcomm.hardware.limelightvision.LLResult;
@@ -10,6 +9,8 @@ import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.brainstem.FieldCoords;
+import org.firstinspires.ftc.teamcode.brainstem.RoadRunnerCoordinates;
 
 import java.util.List;
 
@@ -45,6 +46,36 @@ public class Limelight implements Component {
     public static double CHASE_TX_TOL_DEG = 3.0;
     public static double CHASE_STOP_RANGE_IN = 10.0;
     public static int CHASE_LOST_FRAMES = 15;
+    public static double MAX_CHASE_TIME_MS = 5000.0;
+
+    // collect-N-then-back-off
+    public static int COLLECT_COUNT = 5;
+    public static double COLLECT_DWELL_MS = 400.0;
+    public static double COLLECT_BACK_OFF_IN = 12.0;
+
+    // shared wall limits (rr/ftc inches)
+    public static double WALL_MIN_X = -70.0;
+    public static double WALL_MAX_X = 70.0;
+    public static double WALL_MIN_Y = -70.0;
+    public static double WALL_MAX_Y = 70.0;
+
+    // red = +Y half (matches RedClosePoses); blue = -Y half
+    public static double RED_MIN_Y = 0.0;
+    public static double RED_MAX_Y = WALL_MAX_Y;
+    public static double RED_MIN_X = WALL_MIN_X;
+    public static double RED_MAX_X = WALL_MAX_X;
+
+    public static double BLUE_MIN_Y = WALL_MIN_Y;
+    public static double BLUE_MAX_Y = 0.0;
+    public static double BLUE_MIN_X = WALL_MIN_X;
+    public static double BLUE_MAX_X = WALL_MAX_X;
+
+    public static boolean isOutOfBounds(double x, double y, boolean red) {
+        if (red) {
+            return x < RED_MIN_X || x > RED_MAX_X || y < RED_MIN_Y || y > RED_MAX_Y;
+        }
+        return x < BLUE_MIN_X || x > BLUE_MAX_X || y < BLUE_MIN_Y || y > BLUE_MAX_Y;
+    }
 
     private final Telemetry telemetry;
     private final Limelight3A lime;
@@ -108,16 +139,14 @@ public class Limelight implements Component {
         double forward = CAMERA_FORWARD_IN + forwardFromCamera;
         double left = CAMERA_LEFT_IN - rightFromCamera;
 
-        Pose field = robotPedroPose.getAsCoordinateSystem(FTCCoordinates.INSTANCE);
-        double h = field.getHeading();
-        double cos = Math.cos(h);
-        double sin = Math.sin(h);
-        // same rr x/y flip as blocker offsets
-        double alongHeading = forward * cos - left * sin;
-        double acrossHeading = forward * sin + left * cos;
-        double x = field.getX() + acrossHeading;
-        double y = field.getY() + alongHeading;
-        return new double[]{x, y, Math.toDegrees(h)};
+        Pose field = robotPedroPose.getAsCoordinateSystem(RoadRunnerCoordinates.INSTANCE);
+        // team 0° = +Y CCW; body→field uses standard 0=+X frame
+        double hCcw = FieldCoords.ccwRadians(field.getHeading());
+        double cos = Math.cos(hCcw);
+        double sin = Math.sin(hCcw);
+        double x = field.getX() + forward * cos - left * sin;
+        double y = field.getY() + forward * sin + left * cos;
+        return new double[]{x, y, Math.toDegrees(field.getHeading())};
     }
 
     public double estimateRangeInches(double tyDeg) {
