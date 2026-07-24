@@ -84,19 +84,26 @@ public final class OpmodeCommands {
         return Commands.waitUntil(lift::atTarget).requiring(lift);
     }
 
+    public static Command waitLiftAtTarget(
+            FourBarLinkage lift, FourBarLinkage.LinkState expected) {
+        return Commands.waitUntil(
+                () -> lift.getState() == expected && lift.atTarget()
+        ).requiring(lift);
+    }
+
     // intake + transfer on together
     public static Command turnOnIntakeAndTransfer(Intake intake, Transfer transfer) {
-        return Groups.parallel(
-                turnOnIntake(intake),
-                turnOnTransfer(transfer)
-        );
+        return Commands.instant(() -> {
+            intake.setIntakeState(Intake.IntakeState.IN);
+            transfer.setTransferState(Transfer.TransferState.IN);
+        }).requiring(intake, transfer);
     }
 
     public static Command turnOffIntakeAndTransfer(Intake intake, Transfer transfer) {
-        return Groups.parallel(
-                turnOffIntake(intake),
-                turnOffTransfer(transfer)
-        );
+        return Commands.instant(() -> {
+            intake.setIntakeState(Intake.IntakeState.OFF);
+            transfer.setTransferState(Transfer.TransferState.OFF);
+        }).requiring(intake, transfer);
     }
 
     // go to {x, y, headingDeg} via pedro pathdrive
@@ -205,8 +212,14 @@ public final class OpmodeCommands {
             Blocker blocker,
             FourBarLinkage.LinkState scoreHeight
     ) {
+        // one instant — ivy parallel-of-instants was skipping lift/blocker side effects
         return Groups.sequential(
-                raiseLift(intake, transfer, lift, scoreHeight),
+                Commands.instant(() -> {
+                    intake.setIntakeState(Intake.IntakeState.OFF);
+                    transfer.setTransferState(Transfer.TransferState.IN);
+                    lift.setState(scoreHeight);
+                }).requiring(intake, transfer, lift),
+                waitLiftAtTarget(lift, scoreHeight),
                 openBlocker(blocker)
         );
     }
@@ -301,23 +314,23 @@ public final class OpmodeCommands {
     // everything chill: intake/transfer off, lift down, blocker down
     public static Command resetAll(
             Intake intake, Transfer transfer, FourBarLinkage lift, Blocker blocker) {
-        return Groups.parallel(
-                turnOffIntake(intake),
-                turnOffTransfer(transfer),
-                setLiftDown(lift),
-                closeBlocker(blocker)
-        );
+        return Commands.instant(() -> {
+            intake.setIntakeState(Intake.IntakeState.OFF);
+            transfer.setTransferState(Transfer.TransferState.OFF);
+            lift.setState(FourBarLinkage.LinkState.DOWN);
+            blocker.setDown();
+        }).requiring(intake, transfer, lift, blocker);
     }
 
     // collect vibe: lift down, suck on, blocker down
     public static Command resetAndCollect(
             Intake intake, Transfer transfer, FourBarLinkage lift, Blocker blocker) {
-        return Groups.parallel(
-                setLiftDown(lift),
-                turnOnIntake(intake),
-                turnOnTransfer(transfer),
-                closeBlocker(blocker)
-        );
+        return Commands.instant(() -> {
+            lift.setState(FourBarLinkage.LinkState.DOWN);
+            intake.setIntakeState(Intake.IntakeState.IN);
+            transfer.setTransferState(Transfer.TransferState.IN);
+            blocker.setDown();
+        }).requiring(intake, transfer, lift, blocker);
     }
 
     private static Command raiseLift(
@@ -327,12 +340,12 @@ public final class OpmodeCommands {
             FourBarLinkage.LinkState scoreState
     ) {
         return Groups.sequential(
-                Groups.parallel(
-                        turnOffIntake(intake),
-                        turnOnTransfer(transfer),
-                        setLift(lift, scoreState)
-                ),
-                waitLiftAtTarget(lift)
+                Commands.instant(() -> {
+                    intake.setIntakeState(Intake.IntakeState.OFF);
+                    transfer.setTransferState(Transfer.TransferState.IN);
+                    lift.setState(scoreState);
+                }).requiring(intake, transfer, lift),
+                waitLiftAtTarget(lift, scoreState)
         );
     }
 }

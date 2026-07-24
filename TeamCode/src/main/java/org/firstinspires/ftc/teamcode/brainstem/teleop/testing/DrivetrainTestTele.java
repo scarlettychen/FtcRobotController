@@ -1,15 +1,11 @@
-package org.firstinspires.ftc.teamcode.brainstem.teleop;
+package org.firstinspires.ftc.teamcode.brainstem.teleop.testing;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 
-import org.firstinspires.ftc.teamcode.brainstem.RobotConfiguration;
-
-import com.pedropathing.ftc.drivetrains.MecanumConstants;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.util.Range;
 
 @TeleOp(name = "Test Drivetrain Motors", group = "Test")
 public class DrivetrainTestTele extends LinearOpMode {

@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.brainstem.teleop;
+package org.firstinspires.ftc.teamcode.brainstem.teleop.testing;
 
 import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.Scheduler;
@@ -6,23 +6,23 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.brainstem.auto.OpmodeCommands;
-import org.firstinspires.ftc.teamcode.brainstem.subsystems.FourBarLinkage;
+import org.firstinspires.ftc.teamcode.brainstem.subsystems.Blocker;
 import org.firstinspires.ftc.teamcode.brainstem.utils.GamepadTracker;
 
-// four bar only via commands. a = down, x = low, y = high
-@TeleOp(name = "Test Lift", group = "Test")
-public class FourBarTestTele extends LinearOpMode {
+// blocker only via commands. a = open, b = close
+@TeleOp(name = "Test Blocker", group = "Test")
+public class BlockerTestTele extends LinearOpMode {
 
     protected GamepadTracker gp1;
     protected GamepadTracker gp2;
 
-    private FourBarLinkage lift;
+    private Blocker blocker;
 
     @Override
     public void runOpMode() {
         gp1 = new GamepadTracker(gamepad1);
         gp2 = new GamepadTracker(gamepad2);
-        lift = new FourBarLinkage(hardwareMap, telemetry);
+        blocker = new Blocker(hardwareMap, telemetry);
 
         waitForStart();
         if (isStopRequested()) return;
@@ -32,22 +32,16 @@ public class FourBarTestTele extends LinearOpMode {
             gp2.update();
 
             if (gp1.isFirstA()) {
-                run(OpmodeCommands.setLiftDown(lift));
+                run(OpmodeCommands.openBlocker(blocker));
             }
-            if (gp1.isFirstX()) {
-                run(OpmodeCommands.setLiftLow(lift));
+            if (gp1.isFirstB()) {
+                run(OpmodeCommands.closeBlocker(blocker));
             }
-            if (gp1.isFirstY()) {
-                run(OpmodeCommands.setLiftHigh(lift));
-            }
-
 
             Scheduler.execute();
-            lift.update();
+            blocker.update();
 
-            telemetry.addData("state", lift.getState());
-            telemetry.addData("pos", lift.getPosition());
-            telemetry.addData("atTarget", lift.atTarget());
+            telemetry.addData("state", blocker.getState());
             telemetry.update();
         }
 

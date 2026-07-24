@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.brainstem.teleop;
+package org.firstinspires.ftc.teamcode.brainstem.teleop.testing;
 
 import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.Scheduler;
@@ -6,26 +6,23 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.brainstem.auto.OpmodeCommands;
-import org.firstinspires.ftc.teamcode.brainstem.subsystems.Intake;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.Transfer;
 import org.firstinspires.ftc.teamcode.brainstem.utils.GamepadTracker;
 
-// intake only via commands. a = on, b = off, x = reverse
-@TeleOp(name = "intake + transfer commands", group = "Test")
-public class IntakeTestTele extends LinearOpMode {
+// transfer only via commands. a = on, b = off, x = reverse
+@TeleOp(name = "Test Transfer", group = "Test")
+public class TransferTestTele extends LinearOpMode {
 
     protected GamepadTracker gp1;
     protected GamepadTracker gp2;
 
-    private Intake intake;
     private Transfer transfer;
 
     @Override
     public void runOpMode() {
         gp1 = new GamepadTracker(gamepad1);
         gp2 = new GamepadTracker(gamepad2);
-        intake = new Intake(hardwareMap, telemetry);
-        transfer = new Transfer(hardwareMap,telemetry);
+        transfer = new Transfer(hardwareMap, telemetry);
 
         waitForStart();
         if (isStopRequested()) return;
@@ -35,21 +32,19 @@ public class IntakeTestTele extends LinearOpMode {
             gp2.update();
 
             if (gp1.isFirstA()) {
-               run(OpmodeCommands.turnOnIntakeAndTransfer(intake, transfer));
+                run(OpmodeCommands.turnOnTransfer(transfer));
             }
             if (gp1.isFirstB()) {
-                run(OpmodeCommands.turnOffIntake(intake));
                 run(OpmodeCommands.turnOffTransfer(transfer));
             }
             if (gp1.isFirstX()) {
-                run(OpmodeCommands.reverseIntake(intake));
+                run(OpmodeCommands.reverseTransfer(transfer));
             }
 
             Scheduler.execute();
-            intake.update();
             transfer.update();
 
-            telemetry.addData("state", intake.getIntakeState());
+            telemetry.addData("state", transfer.getTransferState());
             telemetry.update();
         }
 

@@ -75,6 +75,7 @@ public class BrainSTEMRobot {
         blocker = new Blocker(hardwareMap, telemetry);
         limelight = new Limelight(hardwareMap, telemetry);
         drive = new Drive(hardwareMap, configuration);
+        addSubsystem(intake);
         addSubsystem(transfer);
         addSubsystem(lift);
         addSubsystem(blocker);
@@ -116,7 +117,7 @@ public class BrainSTEMRobot {
             follower.getPoseTracker().invalidateCache();
         }
 
-        
+
         pedro.update();
 
         for (Component component : subsystems) {

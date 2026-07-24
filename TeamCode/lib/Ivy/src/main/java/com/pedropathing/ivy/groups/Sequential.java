@@ -36,27 +36,30 @@ class Sequential extends CommandBuilder {
         setPriority(commands.stream().mapToInt(Command::priority).max().orElse(0));
 
         setExecute(() -> {
-            if (done()) return;
+            while (!done()) {
+                Command current = commands.get(index);
 
-            Command current = commands.get(index);
-
-            if (current == null) {
-                index++;
-                execute();
-                return;
-            }
-
-            if (current.done()) {
-                current.end(EndCondition.NATURALLY);
-                index++;
-                if (!done()) {
-                    Command next = commands.get(index);
-                    if (next != null) next.start();
+                if (current == null) {
+                    index++;
+                    continue;
                 }
-                return;
-            }
 
-            current.execute();
+                // finish already-done cmds (instants) and start the next in the same tick
+                if (current.done()) {
+                    current.end(EndCondition.NATURALLY);
+                    index++;
+                    if (!done()) {
+                        Command next = commands.get(index);
+                        if (next != null) {
+                            next.start();
+                        }
+                    }
+                    continue;
+                }
+
+                current.execute();
+                break;
+            }
         });
 
         setEnd(endCondition -> {

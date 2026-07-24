@@ -1,10 +1,9 @@
-package org.firstinspires.ftc.teamcode.brainstem.teleop;
+package org.firstinspires.ftc.teamcode.brainstem.teleop.testing;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.FourBarLinkage;
-import org.firstinspires.ftc.teamcode.brainstem.utils.GamepadTracker;
 
 // four bar testing mode — check motors dont fight
 // a = left @ 0.2  b = right @ 0.2  (hold; release = off)

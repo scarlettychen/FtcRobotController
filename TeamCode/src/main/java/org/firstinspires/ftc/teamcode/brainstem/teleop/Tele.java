@@ -84,18 +84,14 @@ public abstract class Tele extends LinearOpMode {
                 run(OpmodeCommands.raiseAndScoreHigh(
                         robot.intake, robot.transfer, robot.lift, robot.blocker));
             }
-
+            if (gp1.isFirstRightBumper()) {
+                run(OpmodeCommands.turnOnIntakeAndTransfer(robot.intake, robot.transfer));
+            }
             if (gp1.isFirstLeftBumper()) {
                 cancelCommand();
             }
 
-            boolean commandRunning = active != null && Scheduler.isScheduled(active);
-            if (active != null && !commandRunning) {
-                active = null;
-            }
-            if (commandRunning) {
-                Scheduler.execute();
-            }
+            Scheduler.execute();
 
             double y = -gamepad1.left_stick_y * 0.99;
             double x = gamepad1.left_stick_x * 0.99;
@@ -119,13 +115,17 @@ public abstract class Tele extends LinearOpMode {
             robot.drive.setMotorPowers(fl, fr, bl, br);
             Pose field = robot.pinpoint.getPose().getAsCoordinateSystem(FTCCoordinates.INSTANCE);
             telemetry.addData("alliance", red ? "RED" : "BLUE");
-            telemetry.addData("cmd", commandRunning ? "RUNNING" : "off");
-            telemetry.addData("lift", robot.lift.getState());
+            telemetry.addData("cmd", active != null && Scheduler.isScheduled(active) ? "RUNNING" : "off");
+            telemetry.addData("intake", robot.intake.getIntakeState());
+            telemetry.addData("transfer", robot.transfer.getTransferState());
+            telemetry.addData("lift", "%s pos=%d atTarget=%s",
+                    robot.lift.getState(), robot.lift.getPosition(), robot.lift.atTarget());
+            telemetry.addData("blocker", robot.blocker.getState());
             telemetry.addData("field", "(%.1f, %.1f, %.0f°)",
                     field.getX(), field.getY(), Math.toDegrees(field.getHeading()));
             telemetry.update();
         }
-
+        Scheduler.reset();
         cancelCommand();
         robot.drive.setMotorPowers(0, 0, 0, 0);
     }
