@@ -76,17 +76,20 @@ public abstract class Tele extends LinearOpMode {
                 run(OpmodeCommands.resetAll(
                         robot.intake, robot.transfer, robot.lift, robot.blocker));
             }
+
             if (gp1.isFirstX()) {
+                run(OpmodeCommands.openBlocker(robot.blocker));
+            }
+            if (gp1.isFirstDpadDown()) {
                 run(OpmodeCommands.raiseAndScoreLow(
                         robot.intake, robot.transfer, robot.lift, robot.blocker));
             }
-            if (gp1.isFirstY()) {
+            if (gp1.isFirstDpadUp()) {
                 run(OpmodeCommands.raiseAndScoreHigh(
                         robot.intake, robot.transfer, robot.lift, robot.blocker));
             }
-            if (gp1.isFirstRightBumper()) {
-                run(OpmodeCommands.turnOnIntakeAndTransfer(robot.intake, robot.transfer));
-            }
+
+
             if (gp1.isFirstLeftBumper()) {
                 cancelCommand();
             }

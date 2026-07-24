@@ -209,7 +209,6 @@ public final class OpmodeCommands {
             Intake intake,
             Transfer transfer,
             FourBarLinkage lift,
-            Blocker blocker,
             FourBarLinkage.LinkState scoreHeight
     ) {
         // one instant — ivy parallel-of-instants was skipping lift/blocker side effects
@@ -219,21 +218,20 @@ public final class OpmodeCommands {
                     transfer.setTransferState(Transfer.TransferState.IN);
                     lift.setState(scoreHeight);
                 }).requiring(intake, transfer, lift),
-                waitLiftAtTarget(lift, scoreHeight),
-                openBlocker(blocker)
+                waitLiftAtTarget(lift, scoreHeight)
         );
     }
 
     public static Command raiseAndScoreHigh(
             Intake intake, Transfer transfer, FourBarLinkage lift, Blocker blocker) {
         return raiseAndScore(
-                intake, transfer, lift, blocker, FourBarLinkage.LinkState.SCORE_HIGH);
+                intake, transfer, lift, FourBarLinkage.LinkState.SCORE_HIGH);
     }
 
     public static Command raiseAndScoreLow(
             Intake intake, Transfer transfer, FourBarLinkage lift, Blocker blocker) {
         return raiseAndScore(
-                intake, transfer, lift, blocker, FourBarLinkage.LinkState.SCORE_LOW);
+                intake, transfer, lift, FourBarLinkage.LinkState.SCORE_LOW);
     }
 
     // wait til blocker is over the goal box then yeet it open

@@ -36,8 +36,8 @@ public class RobotConfiguration {
         return new PinpointConstants()
                 .hardwareMapName("odo")
                 .distanceUnit(DistanceUnit.MM)
-                .forwardPodY(-28.5)
-                .strafePodX(-266.7)
+                .forwardPodY(-43.123)
+                .strafePodX(71.718)
                 .customEncoderResolution(19.894)
                 .forwardEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD)
                 .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD);
