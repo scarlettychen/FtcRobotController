@@ -7,8 +7,6 @@ import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.behaviors.EndCondition;
 import com.pedropathing.ivy.commands.Commands;
 import com.pedropathing.ivy.groups.Groups;
-import com.qualcomm.robotcore.util.ElapsedTime;
-
 import org.firstinspires.ftc.teamcode.brainstem.RoadRunnerCoordinates;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.Blocker;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.FourBarLinkage;
@@ -172,7 +170,7 @@ public final class OpmodeCommands {
     public static Command extakeIntakeAndTransfer(Intake intake, Transfer transfer) {
         return Commands.instant(() -> {
             intake.setIntakeState(Intake.IntakeState.OUT);
-//            transfer.setTransferState(Transfer.TransferState.OUT);
+            transfer.setTransferState(Transfer.TransferState.OUT);
         }).requiring(intake, transfer);
     }
 
@@ -443,7 +441,11 @@ public final class OpmodeCommands {
                 smartCollect(
                         drive, limelight, intake, transfer, intakeGate,
                         ballCount, timeoutSeconds),
-                driveBack(drive, backInches)
+                // Don't hang forever if Pedro back-off never finishes
+                Groups.race(
+                        driveBack(drive, backInches),
+                        Commands.waitMs(2500)
+                )
         );
     }
 
@@ -544,30 +546,35 @@ public final class OpmodeCommands {
         final PIDController turnPid = new PIDController(0, 0, 0);
         final PIDController rangePid = new PIDController(0, 0, 0);
 
-        final ElapsedTime chaseTimer = new ElapsedTime();
-        final boolean[] done = {false};
+        final long[] startMs = {0};
+        final boolean[] finished = {false};
         final double[] lastForward = {0.15};
+        final long timeoutMs = Math.max(1L, (long) (timeoutSeconds * 1000.0));
 
-        return Command.build()
+        Command chase = Command.build()
                 .setStart(() -> {
                     follower.startTeleopDrive();
                     turnPid.reset();
                     rangePid.reset();
                     intakeGate.resetCount();
                     estimatedBallsInRobot = 0;
-                    chaseTimer.reset();
-                    done[0] = false;
+                    startMs[0] = System.currentTimeMillis();
+                    finished[0] = false;
                     lastForward[0] = 0.15;
 
                     intake.setIntakeState(Intake.IntakeState.IN);
                     transfer.setTransferState(Transfer.TransferState.IN);
                 })
                 .setExecute(() -> {
-                    // gate.count updates in robot.update() before Scheduler.execute
+                    if (finished[0]) {
+                        return;
+                    }
                     syncBallCount(intakeGate);
-                    if (intakeGate.getBallCount() >= targetCount
-                            || chaseTimer.seconds() > timeoutSeconds) {
-                        done[0] = true;
+                    long elapsed = System.currentTimeMillis() - startMs[0];
+                    if (intakeGate.getBallCount() >= targetCount || elapsed >= timeoutMs) {
+                        finished[0] = true;
+                        follower.setTeleOpDrive(0, 0, 0, true);
+                        follower.update();
                         return;
                     }
 
@@ -576,38 +583,56 @@ public final class OpmodeCommands {
 
                     // No vision: keep creeping / last forward so intake can still eat
                     if (ball == null) {
-                        double creep = Math.max(0.12, Math.min(0.25, lastForward[0]));
+                        double creep = Math.max(0.15, Math.min(0.30, lastForward[0]));
                         follower.setTeleOpDrive(creep, 0, 0, true);
                         follower.update();
                         return;
                     }
 
                     double currentRange = limelight.estimateRangeInches(ball.tyDeg);
+                    double tx = ball.txDeg - Limelight.CHASE_TX_OFFSET_DEG;
 
                     turnPid.setGains(Limelight.CHASE_KP_TX, Limelight.CHASE_KI_TX, Limelight.CHASE_KD_TX);
                     rangePid.setGains(Limelight.CHASE_KP_RANGE, Limelight.CHASE_KI_RANGE, Limelight.CHASE_KD_RANGE);
                     turnPid.setOutputLimit(Limelight.CHASE_MAX_TURN);
                     rangePid.setOutputLimit(Limelight.CHASE_MAX_FORWARD);
 
-                    double turn = -turnPid.calculate(ball.txDeg, 0.0);
+                    // calculate(current, target): pass stop as current, range as target → +fwd when far
                     double forward = 0.0;
                     if (!Double.isNaN(currentRange)) {
                         forward = rangePid.calculate(Limelight.CHASE_STOP_RANGE_IN, currentRange);
                         if (forward < 0) forward = 0;
                     }
-                    // close enough: still nudge in so the gate sees the ball
-                    if (forward < 0.12
-                            && !Double.isNaN(currentRange)
-                            && currentRange <= Limelight.CHASE_STOP_RANGE_IN + 4.0) {
-                        forward = 0.12;
-                    }
-                    lastForward[0] = forward;
 
-                    follower.setTeleOpDrive(forward, 0, turn, true);
+                    boolean near = !Double.isNaN(currentRange)
+                            && currentRange <= Limelight.CHASE_STRAFE_RANGE_IN;
+                    double turn;
+                    double strafe = 0.0;
+                    if (near) {
+                        // Center with strafe; soft turn — spinning here knocks the ball.
+                        // Pedro +lateral = left; +tx = ball right → negative lateral.
+                        strafe = Math.max(-Limelight.CHASE_MAX_STRAFE,
+                                Math.min(Limelight.CHASE_MAX_STRAFE, -Limelight.CHASE_KP_STRAFE * tx));
+                        turn = -turnPid.calculate(tx, 0.0) * Limelight.CHASE_NEAR_TURN_SCALE;
+                        forward = Math.max(forward, Limelight.CHASE_MIN_FORWARD);
+                    } else {
+                        turn = -turnPid.calculate(tx, 0.0);
+                        if (Math.abs(tx) < 15.0) {
+                            forward = Math.max(forward, Limelight.CHASE_MIN_FORWARD * 0.7);
+                        }
+                    }
+
+                    lastForward[0] = forward;
+                    follower.setTeleOpDrive(forward, strafe, turn, true);
                     follower.update();
                 })
-                .setDone(() -> done[0])
+                // Wall-clock in done() so Sequential/Scheduler always see timeout even if
+                // execute early-returned without setting finished.
+                .setDone(() -> finished[0]
+                        || (startMs[0] != 0
+                        && System.currentTimeMillis() - startMs[0] >= timeoutMs))
                 .setEnd(endCondition -> {
+                    finished[0] = true;
                     syncBallCount(intakeGate);
                     follower.setTeleOpDrive(0, 0, 0, true);
                     follower.update();
@@ -615,12 +640,16 @@ public final class OpmodeCommands {
                     transfer.setTransferState(Transfer.TransferState.OFF);
                 })
                 .requiring(drive, limelight, intake, transfer, intakeGate);
+
+        // Hard deadline — waitMs uses the same System.currentTimeMillis clock
+        return Groups.race(chase, Commands.waitMs(timeoutMs));
     }
 
     // intake off, transfer on, lift high. doesnt open blocker
     public static Command setLiftToHigh(Intake intake, Transfer transfer, FourBarLinkage lift) {
         return raiseLift(intake, transfer, lift, FourBarLinkage.LinkState.SCORE_HIGH);
     }
+
 
     // same but lift low
     public static Command setLiftToLow(Intake intake, Transfer transfer, FourBarLinkage lift) {

@@ -19,12 +19,12 @@ import java.util.List;
 public class Limelight implements Component {
 
     // cam height off the floor (inches)
-    public static double CAMERA_HEIGHT_IN = 12.0;
+    public static double CAMERA_HEIGHT_IN = 10.0;
     // pitch: neg = pointed at the floor
-    public static double CAMERA_PITCH_DEG = -25.0;
+    public static double CAMERA_PITCH_DEG = -20.0;
     // where the cam sits on the bot: +fwd / +left from center
-    public static double CAMERA_FORWARD_IN = 0.0;
-    public static double CAMERA_LEFT_IN = 0.0;
+    public static double CAMERA_FORWARD_IN = 3.0;
+    public static double CAMERA_LEFT_IN = -1.5;
     // skip tiny / far junk
     public static double MIN_AREA = 0.001;
     public static double MIN_CONFIDENCE = 0.3;
@@ -34,17 +34,28 @@ public class Limelight implements Component {
     public static String CLASS_FILTER = "";
 
     // ball chase pid (teleop powers)
-    public static double CHASE_KP_TX = 0.025;
+    public static double CHASE_KP_TX = 0.018;
     public static double CHASE_KI_TX = 0.0;
     public static double CHASE_KD_TX = 0.001;
-    public static double CHASE_KP_RANGE = 0.04;
+    public static double CHASE_KP_RANGE = 0.035;
     public static double CHASE_KI_RANGE = 0.0;
     public static double CHASE_KD_RANGE = 0.0;
-    public static double CHASE_MAX_FORWARD = 0.90;
-    public static double CHASE_MAX_TURN = 0.7;
-    // done when |tx| small + range under stop
-    public static double CHASE_TX_TOL_DEG = 3.0;
-    public static double CHASE_STOP_RANGE_IN = 10.0;
+    /** Strafe gain on tx when close (+tx = ball right → strafe right). */
+    public static double CHASE_KP_STRAFE = 0.025;
+    public static double CHASE_MAX_FORWARD = 0.85;
+    public static double CHASE_MAX_TURN = 0.45;
+    public static double CHASE_MAX_STRAFE = 0.45;
+    /** Keep pushing into the intake once roughly aimed (don't stop and spin). */
+    public static double CHASE_MIN_FORWARD = 0.28;
+    // done / approach: drive into intake, not stop a foot out
+    public static double CHASE_TX_TOL_DEG = 4.0;
+    public static double CHASE_STOP_RANGE_IN = 3.0;
+    /** Below this range, prefer strafe over turn so we don't spin-bump the ball. */
+    public static double CHASE_STRAFE_RANGE_IN = 20.0;
+    /** Scale turn when in the strafe zone. */
+    public static double CHASE_NEAR_TURN_SCALE = 0.2;
+    /** Aim tx bias if limelight isn't centered on the intake (deg). */
+    public static double CHASE_TX_OFFSET_DEG = 0.0;
     public static int CHASE_LOST_FRAMES = 15;
     public static double MAX_CHASE_TIME_MS = 5000.0;
 
@@ -102,7 +113,7 @@ public class Limelight implements Component {
     public Limelight(HardwareMap map, Telemetry telemetry) {
         this.telemetry = telemetry;
         lime = map.get(Limelight3A.class, "limelight");
-        lime.setPollRateHz(100);
+        lime.setPollRateHz(50);
         lime.pipelineSwitch(4);
         lime.start();
     }
@@ -157,6 +168,24 @@ public class Limelight implements Component {
         return CAMERA_HEIGHT_IN / Math.tan(angleDownRad);
     }
 
+    /*
+    public Pose estimateRobotFieldPose() {
+        try {
+            LLResult result = lime.getLatestResult();
+            if (result != null && result.isValid() && result.getBotpose() != null) {
+                return new Pose(
+                    result.getBotpose().getPosition().x,
+                    result.getBotpose().getPosition().y,
+                    Math.toRadians(result.getBotpose().getOrientation().getYaw())
+                );
+            }
+        } catch (Exception e) {
+            // Fails gracefully
+        }
+        return null;
+    }
+     */
+
     public double estimateClosestRangeInches() {
         if (closest == null) {
             return Double.NaN;
@@ -172,7 +201,16 @@ public class Limelight implements Component {
     @Override
     public void update() {
         closest = null;
-        LLResult result = lime.getLatestResult();
+        LLResult result = null;
+
+
+        try {
+            result = lime.getLatestResult();
+        } catch (Exception e) {
+            telemetry.addData("Limelight", "potential DC");}
+
+
+
         if (result == null || !result.isValid()) {
             telemetry.addData("balls", 0);
             return;

@@ -14,8 +14,9 @@ import org.firstinspires.ftc.teamcode.brainstem.subsystems.FourBarLinkage;
 import org.firstinspires.ftc.teamcode.brainstem.utils.GamepadTracker;
 
 // teleop: sticks = raw drive, buttons = opmodecommands
+// Y = limelight smart collect (Pedro) | X = cancel
 // RT hold = intake+transfer in | LT hold = extake both | release = off
-// B = reset | LB = open blocker | dpad = raise+score | Y = cancel
+// B = reset | LB = open blocker | dpad / RB = raise+score
 @Configurable
 public abstract class Tele extends LinearOpMode {
 
@@ -88,7 +89,7 @@ public abstract class Tele extends LinearOpMode {
         telemetry.addLine("Tele");
         telemetry.addData("alliance", red ? "RED" : "BLUE");
         telemetry.addData("start", "(%.0f, %.0f, %.0f°)", START[0], START[1], START[2]);
-        telemetry.addLine("RT intake | LT extake | B reset | Dpad score | LB blocker | Y cancel");
+        telemetry.addLine("Y smart collect | X cancel | RT intake | LT extake | RB score | LB blocker");
         telemetry.update();
 
         waitForStart();
@@ -104,11 +105,34 @@ public abstract class Tele extends LinearOpMode {
 
 
             if (gp1.isFirstRightBumper()) {
+                lastTriggerFlow = null;
                 if (robot.lift.getState() == FourBarLinkage.LinkState.SCORE_HIGH) {
-                    run(OpmodeCommands.resetAll( robot.intake, robot.transfer, robot.lift, robot.blocker));
+                    run(OpmodeCommands.resetAll(
+                            robot.intake, robot.transfer, robot.lift, robot.blocker));
                 } else {
-                    run(OpmodeCommands.raiseAndScoreHigh(robot.intake, robot.transfer, robot.lift, robot.blocker));
+                    run(OpmodeCommands.raiseAndScoreHigh(
+                            robot.intake, robot.transfer, robot.lift, robot.blocker));
                 }
+            }
+
+            // Pedro teleop chase — must suppress raw Drive sticks (takesDrive=true)
+            if (gp1.isFirstY()) {
+                lastTriggerFlow = null;
+                run(OpmodeCommands.smartCollect(
+                        pedroDrive,
+                        robot.limelight,
+                        robot.intake,
+                        robot.transfer,
+                        robot.intakeGate,
+                        SMART_COLLECT_TARGET,
+                        SMART_COLLECT_TIMEOUT_S), true);
+            }
+
+            if (gp1.isFirstX()) {
+                lastTriggerFlow = null;
+                cancelCommand();
+                robot.follower.breakFollowing();
+                robot.drive.setMotorPowers(0, 0, 0, 0);
             }
 
             if (gp1.isFirstB() || gamepad2.bWasPressed()) {
@@ -133,11 +157,6 @@ public abstract class Tele extends LinearOpMode {
                 lastTriggerFlow = null;
                 run(OpmodeCommands.raiseAndScoreHigh(
                         robot.intake, robot.transfer, robot.lift, robot.blocker));
-            }
-
-            if (gp1.isFirstY()) {
-                lastTriggerFlow = null;
-                cancelCommand();
             }
 
             // held triggers → Ivy instants (edge only). skip while another cmd owns subsystems.

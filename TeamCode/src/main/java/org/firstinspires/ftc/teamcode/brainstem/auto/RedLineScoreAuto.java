@@ -105,6 +105,17 @@ public class RedLineScoreAuto extends LinearOpMode {
             telemetry.addData("balls in robot", OpmodeCommands.getEstimatedBallsInRobot());
             robot.intakeGate.addTelemetry();
             telemetry.addData("busy", drive.isBusy());
+            com.pedropathing.trajectory.PredictiveTrajectoryFollower pred =
+                    robot.follower.getTrajectoryFollower();
+            if (pred != null) {
+                telemetry.addData("κ (1/in)", "%.4f", pred.getLastCurvature());
+                telemetry.addData("v_lat (in/s)", "%.1f", pred.getLastVelocityForLat());
+                telemetry.addData("a_lat raw/clamped", "%.1f / %.1f%s",
+                        pred.getLastALatUnclamped(),
+                        pred.getLastALatClamped(),
+                        pred.wasLastALatClamped() ? " CLAMP" : "");
+                telemetry.addData("lat power", "%.3f", pred.getLastLatPower());
+            }
             telemetry.update();
         }
 
