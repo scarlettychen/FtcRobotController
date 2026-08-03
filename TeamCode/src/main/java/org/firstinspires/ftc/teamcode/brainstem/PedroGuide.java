@@ -26,7 +26,7 @@ public final class PedroGuide {
                 new Mecanum(hardwareMap, configuration.createMecanumConstants())
         );
         follower.setMotionModel(robotModel);
-        configuration.configurePredictiveFollower(follower);
+        follower.constants.mass = robotModel.mass;
         PedroBrainSTEMBridge bridge = new PedroBrainSTEMBridge(follower, poseFeed);
         bridge.setAttachedToRobotLoop(true);
         return bridge;

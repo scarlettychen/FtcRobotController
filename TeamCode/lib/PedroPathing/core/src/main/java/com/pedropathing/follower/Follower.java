@@ -8,9 +8,6 @@ import com.pedropathing.drivetrain.Drivetrain;
 import com.pedropathing.model.MotionModel;
 import com.pedropathing.paths.PathConstraints;
 import com.pedropathing.paths.PathPoint;
-import com.pedropathing.trajectory.PredictiveTrajectoryFollower;
-import com.pedropathing.trajectory.Trajectory;
-import com.pedropathing.trajectory.TimeOptimalTrajectoryGenerator;
 import com.pedropathing.util.PoseHistory;
 
 import com.pedropathing.localization.Localizer;
@@ -70,11 +67,8 @@ public class Follower {
     private Runnable resetFollowing = null;
     private Queue<PathCallback> currentCallbacks;
 
-    /** TeamCode-owned physics model for time-optimal profiling + feedforward. */
+    /** TeamCode-owned physics model (feedforward + localization confidence). */
     private MotionModel motionModel;
-    /** Predictive follower used when {@link #followTrajectory(Trajectory)} is active. */
-    public PredictiveTrajectoryFollower trajectoryFollower;
-    private boolean followingTrajectory = false;
 
     /**
      * This creates a new Follower given a HardwareMap.
@@ -498,18 +492,6 @@ public class Follower {
         updatePose();
         updateDrivetrain();
 
-        // Time-optimal trajectory mode: bypass geometric PID cruise, use FF+FB setpoints.
-        if (followingTrajectory) {
-            trajectoryFollower.update(false); // pose already refreshed above
-            if (trajectoryFollower.isFinished()) {
-                followingTrajectory = false;
-                isBusy = false;
-            } else {
-                isBusy = true;
-            }
-            return;
-        }
-
         if (manualDrive) {
             previousClosestPose = closestPose;
             closestPose = new PathPoint();
@@ -542,7 +524,7 @@ public class Follower {
             closestPose = currentPath.updateClosestPose(poseTracker.getPose(), BEZIER_CURVE_SEARCH_LIMIT);
             updateErrorAndVectors();
             if (followingPathChain) updateCallbacks();
-            drivetrain.runDrive(getCorrectiveVector(), getHeadingVector(), getDriveVector(), poseTracker.getPose().getHeading(), getVelocity());
+            runPathDriveWithOptionalModel();
         }
 
         if (poseTracker.getVelocity().getMagnitude() < constants.stuckVelocity && zeroVelocityDetectedTimer == null && isBusy &&
@@ -636,10 +618,6 @@ public class Follower {
         isTurning = false;
         reachedParametricPathEnd = false;
         zeroVelocityDetectedTimer = null;
-        if (followingTrajectory && trajectoryFollower != null) {
-            trajectoryFollower.cancel();
-        }
-        followingTrajectory = false;
     }
 
     /**
@@ -647,67 +625,7 @@ public class Follower {
      * @return returns if the Follower is busy.
      */
     public boolean isBusy() {
-        return isBusy || followingTrajectory;
-    }
-
-    /**
-     * Follow a precomputed time-optimal {@link Trajectory} with predictive feedforward.
-     * Prefer generating during init via {@link TimeOptimalTrajectoryGenerator#generate}.
-     * Does not settle at the end (mid-path flow).
-     */
-    public void followTrajectory(Trajectory trajectory) {
-        followTrajectory(trajectory, false);
-    }
-
-    /**
-     * @param settleAtEnd if true, hold end pose after the profile (last path of an auton).
-     */
-    public void followTrajectory(Trajectory trajectory, boolean settleAtEnd) {
-        requireMotionModel();
-        // Do not call full breakFollowing() here: it cancels an active trajectoryFollower
-        // (finished=true, running=false) and can race with follow() on some loops.
-        manualDrive = false;
-        holdingPosition = false;
-        isTurning = false;
-        reachedParametricPathEnd = false;
-        zeroVelocityDetectedTimer = null;
-        errorCalculator.breakFollowing();
-        vectorCalculator.breakFollowing();
-        drivetrain.breakFollowing();
-        followingTrajectory = true;
-        isBusy = true;
-        trajectoryFollower.follow(trajectory, settleAtEnd);
-    }
-
-    /**
-     * Sample {@code path} with the current {@link #motionModel}, generate a time-optimal
-     * trajectory offline-style (may take a few ms — call from init if possible), then follow it.
-     */
-    public void followPathTimeOptimal(Path path) {
-        followPathTimeOptimal(path, false);
-    }
-
-    public void followPathTimeOptimal(Path path, boolean settleAtEnd) {
-        followTrajectory(TimeOptimalTrajectoryGenerator.generate(path, requireMotionModel()), settleAtEnd);
-    }
-
-    /**
-     * Same as {@link #followPathTimeOptimal(Path)} for a full {@link PathChain}.
-     */
-    public void followPathChainTimeOptimal(PathChain chain) {
-        followPathChainTimeOptimal(chain, false);
-    }
-
-    public void followPathChainTimeOptimal(PathChain chain, boolean settleAtEnd) {
-        followTrajectory(TimeOptimalTrajectoryGenerator.generate(chain, requireMotionModel()), settleAtEnd);
-    }
-
-    public boolean isFollowingTrajectory() {
-        return followingTrajectory;
-    }
-
-    public PredictiveTrajectoryFollower getTrajectoryFollower() {
-        return trajectoryFollower;
+        return isBusy;
     }
 
     public MotionModel getMotionModel() {
@@ -719,16 +637,54 @@ public class Follower {
             throw new IllegalArgumentException("motionModel cannot be null");
         }
         this.motionModel = motionModel;
-        this.trajectoryFollower = new PredictiveTrajectoryFollower(poseTracker, drivetrain, motionModel);
+        // Model owns centripetal/lateral FF — turn off Pedro's mass-based centripetal scaling.
+        useCentripetal = false;
     }
 
-    private MotionModel requireMotionModel() {
-        if (motionModel == null) {
-            throw new IllegalStateException(
-                    "Time-optimal following requires a TeamCode MotionModel. "
-                            + "Call follower.setMotionModel(...) during robot construction.");
+    /**
+     * Drive along the current path. With a {@link MotionModel}, cruise power comes from
+     * kS/kV/kA feedforward on a simple remaining-distance speed profile; Pedro PID stays as
+     * light cross-track / heading / end correction only.
+     */
+    private void runPathDriveWithOptionalModel() {
+        Vector corrective = getCorrectiveVector();
+        Vector heading = getHeadingVector();
+        Vector drive = getDriveVector();
+        Vector velocity = getVelocity();
+        Pose pose = poseTracker.getPose();
+
+        if (motionModel != null && currentPath != null) {
+            Vector tangent = getClosestPointTangentVector();
+            if (tangent != null && tangent.getMagnitude() > 1e-6) {
+                Vector unitT = tangent.normalize();
+                double remaining = Math.max(0.0, currentPath.getDistanceRemaining());
+                double vMax = Math.max(motionModel.motorLimitedVelocity(), 1e-3);
+                double aDec = Math.max(motionModel.profileMaxDeceleration(), 1e-3);
+                double aAcc = Math.max(motionModel.profileMaxAcceleration(), 1e-3);
+                double stopDist = (vMax * vMax) / (2.0 * aDec);
+                double vRef = remaining >= stopDist
+                        ? vMax
+                        : Math.sqrt(Math.max(0.0, 2.0 * aDec * remaining));
+                double vMeas = velocity.dot(unitT);
+                double aRef = Math.max(-aDec, Math.min(aAcc, (vRef - vMeas) * 2.0));
+                double ffDrive = motionModel.feedforwardPower(vRef, aRef);
+                // Model owns cruise; keep a small fraction of Pedro drive for end settling.
+                drive = unitT.times(ffDrive).plus(drive.times(0.2));
+
+                double kappa = currentPath.getClosestPointCurvature();
+                double aLatMag = Math.min(
+                        vMeas * vMeas * Math.abs(kappa),
+                        motionModel.getMaxLateralAcceleration());
+                double latSign = Math.signum(kappa);
+                double ffLat = (Math.abs(latSign) < 1e-6 || Math.abs(kappa) < 1e-8)
+                        ? 0.0
+                        : motionModel.feedforwardPower(0.0, aLatMag * latSign);
+                Vector unitN = new Vector(1.0, unitT.getTheta() + Math.PI / 2.0);
+                corrective = corrective.plus(unitN.times(ffLat));
+            }
         }
-        return motionModel;
+
+        drivetrain.runDrive(corrective, heading, drive, pose.getHeading(), velocity);
     }
 
     /**
@@ -1221,9 +1177,6 @@ public class Follower {
      * @return returns the proportion of the current Path that has been completed.
      */
     public double getPathCompletion() {
-        if (followingTrajectory && trajectoryFollower != null) {
-            return trajectoryFollower.getPathCompletion();
-        }
         if (currentPath == null) {
             return 0;
         }

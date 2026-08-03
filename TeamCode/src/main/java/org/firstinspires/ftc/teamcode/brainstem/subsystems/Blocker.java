@@ -84,6 +84,23 @@ public class Blocker implements Component {
                 && Math.abs(blocker.getY() - regionY) <= halfHeight;
     }
 
+    /** FieldCoords pose {@code {x,y,headingDeg}} — no Pedro types at the call site. */
+    public boolean isOverRegionField(
+            double[] fieldPose,
+            double regionX,
+            double regionY,
+            double halfWidth,
+            double halfHeight
+    ) {
+        double hRad = Math.toRadians(fieldPose[2]);
+        double hCcw = FieldCoords.ccwRadians(hRad);
+        double cos = Math.cos(hCcw);
+        double sin = Math.sin(hCcw);
+        double bx = fieldPose[0] + OFFSET_FORWARD_IN * cos - OFFSET_LEFT_IN * sin;
+        double by = fieldPose[1] + OFFSET_FORWARD_IN * sin + OFFSET_LEFT_IN * cos;
+        return Math.abs(bx - regionX) <= halfWidth && Math.abs(by - regionY) <= halfHeight;
+    }
+
     @Override
     public void reset() {}
 

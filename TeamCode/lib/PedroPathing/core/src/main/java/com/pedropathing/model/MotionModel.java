@@ -1,10 +1,9 @@
 package com.pedropathing.model;
 
 /**
- * Physics contract used by Pedro's time-optimal trajectory generator and predictive follower.
- *
- * <p>The concrete, team-tuned robot model belongs in TeamCode. Pedro depends only on this
- * interface so teams can own mass, acceleration, feedforward, voltage, and motion-context values.
+ * Physics contract for TeamCode {@code RobotModel}: velocity/accel limits and kS/kV/kA feedforward.
+ * When set on {@link com.pedropathing.follower.Follower}, classic path following is model-led
+ * (feedforward + light PID correction) so teams tune the model instead of Pedro PID gains.
  */
 public interface MotionModel {
     double motorLimitedVelocity();

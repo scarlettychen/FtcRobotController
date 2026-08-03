@@ -1,20 +1,19 @@
 package org.firstinspires.ftc.teamcode.brainstem.teleop;
 
 import com.bylazar.configurables.annotations.Configurable;
-import com.pedropathing.auto.PedroDrive;
-import com.pedropathing.geometry.Pose;
 import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.Scheduler;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 import org.firstinspires.ftc.teamcode.brainstem.BrainSTEMRobot;
-import org.firstinspires.ftc.teamcode.brainstem.RoadRunnerCoordinates;
+import org.firstinspires.ftc.teamcode.brainstem.FieldCoords;
 import org.firstinspires.ftc.teamcode.brainstem.auto.OpmodeCommands;
+import org.firstinspires.ftc.teamcode.brainstem.follower.PathFollower;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.FourBarLinkage;
 import org.firstinspires.ftc.teamcode.brainstem.utils.GamepadTracker;
 
 // teleop: sticks = raw drive, buttons = opmodecommands
-// Y = limelight smart collect (Pedro) | X = cancel
+// Y = limelight smart collect | X = cancel
 // RT hold = intake+transfer in | LT hold = extake both | release = off
 // B = reset | LB = open blocker | dpad / RB = raise+score
 @Configurable
@@ -34,7 +33,7 @@ public abstract class Tele extends LinearOpMode {
     private final boolean red;
 
     protected BrainSTEMRobot robot;
-    protected PedroDrive pedroDrive;
+    protected PathFollower pathFollower;
     protected GamepadTracker gp1;
     protected GamepadTracker gp2;
 
@@ -80,8 +79,7 @@ public abstract class Tele extends LinearOpMode {
         robot.setAlliance(red);
         robot.setStartPose(START);
 
-        pedroDrive = new PedroDrive(robot.follower);
-        pedroDrive.setExternalLoop(true);
+        pathFollower = robot.createPathFollower();
 
         gp1 = new GamepadTracker(gamepad1);
         gp2 = new GamepadTracker(gamepad2);
@@ -119,7 +117,7 @@ public abstract class Tele extends LinearOpMode {
             if (gp1.isFirstY()) {
                 lastTriggerFlow = null;
                 run(OpmodeCommands.smartCollect(
-                        pedroDrive,
+                        pathFollower,
                         robot.limelight,
                         robot.intake,
                         robot.transfer,
@@ -131,7 +129,7 @@ public abstract class Tele extends LinearOpMode {
             if (gp1.isFirstX()) {
                 lastTriggerFlow = null;
                 cancelCommand();
-                robot.follower.breakFollowing();
+                pathFollower.cancel();
                 robot.drive.setMotorPowers(0, 0, 0, 0);
             }
 
@@ -230,7 +228,7 @@ public abstract class Tele extends LinearOpMode {
                 robot.drive.setMotorPowers(fl, fr, bl, br);
             }
 
-            Pose field = robot.pinpoint.getPose().getAsCoordinateSystem(RoadRunnerCoordinates.INSTANCE);
+            double[] field = robot.getFieldPose();
             OpmodeCommands.syncBallCount(robot.intakeGate);
             telemetry.addData("alliance", red ? "RED" : "BLUE");
             telemetry.addData("cmd", commandRunning() ? "RUNNING" : "off");
@@ -242,13 +240,13 @@ public abstract class Tele extends LinearOpMode {
             telemetry.addData("lift", "%s pos=%d atTarget=%s",
                     robot.lift.getState(), robot.lift.getPosition(), robot.lift.atTarget());
             telemetry.addData("blocker", robot.blocker.getState());
-            telemetry.addData("field", "(%.1f, %.1f, %.0f°)",
-                    field.getX(), field.getY(), Math.toDegrees(field.getHeading()));
+            telemetry.addData("field", FieldCoords.format(field));
             telemetry.addData("time num", time);
             telemetry.update();
         }
         Scheduler.reset();
         cancelCommand();
+        pathFollower.cancel();
         robot.drive.setMotorPowers(0, 0, 0, 0);
     }
 }

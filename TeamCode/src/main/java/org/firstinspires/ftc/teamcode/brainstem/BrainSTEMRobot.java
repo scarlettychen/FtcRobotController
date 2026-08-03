@@ -9,7 +9,8 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.brainstem.auto.poses.AlliancePoses;
+import org.firstinspires.ftc.teamcode.brainstem.follower.PathFollower;
+import org.firstinspires.ftc.teamcode.brainstem.follower.PedroFollowerAdapter;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.Blocker;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.Drive;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.FourBarLinkage;
@@ -100,10 +101,28 @@ public class BrainSTEMRobot {
         this.red = red;
     }
 
+    /** Classic Pedro follower behind the portable {@link PathFollower} contract. */
+    public PathFollower createPathFollower() {
+        return new PedroFollowerAdapter(follower, robotModel);
+    }
+
+    /** Field pose {@code {x, y, headingDeg}} in {@link RoadRunnerCoordinates} / FieldCoords. */
+    public double[] getFieldPose() {
+        Pose field = pinpoint.getPose().getAsCoordinateSystem(RoadRunnerCoordinates.INSTANCE);
+        return new double[]{
+                field.getX(),
+                field.getY(),
+                Math.toDegrees(field.getHeading())
+        };
+    }
+
     // set match start as {x, y, headingDeg} in FieldCoords (0°=+Y into field, CCW+).
     // skip on simple drive-forward tests if you want raw pedro (0,0,0).
     public void setStartPose(double[] startPose) {
-        Pose pose = AlliancePoses.toPose(startPose);
+        Pose pose = Pose.fromFieldDegrees(
+                startPose[0],
+                startPose[1],
+                startPose.length >= 3 ? startPose[2] : 0);
         // hard reset — Pinpoint.setStartPose() rebases and can corrupt XY if called twice
         pinpoint.resetPose(pose);
         pedroPoseFeed.setStartPose(pose);
@@ -122,6 +141,8 @@ public class BrainSTEMRobot {
             follower.getPoseTracker().invalidateCache();
         }
 
+        batteryFilter.update();
+        robotModel.setBatteryVoltage(batteryFilter.getVoltage());
 
         pedro.update();
 

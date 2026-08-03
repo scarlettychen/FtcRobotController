@@ -1,12 +1,13 @@
 package org.firstinspires.ftc.teamcode.brainstem.auto;
 
-import com.pedropathing.auto.PedroDrive;
-import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 import org.firstinspires.ftc.teamcode.brainstem.BrainSTEMRobot;
-import org.firstinspires.ftc.teamcode.brainstem.RoadRunnerCoordinates;
+import org.firstinspires.ftc.teamcode.brainstem.FieldCoords;
+import org.firstinspires.ftc.teamcode.brainstem.follower.FollowerOutput;
+import org.firstinspires.ftc.teamcode.brainstem.follower.PathFollower;
+import org.firstinspires.ftc.teamcode.brainstem.follower.PathSpec;
 
 @Autonomous(name = "Pedro Drive Forward", group = "Pedro")
 public class DriveForwardOpMode extends LinearOpMode {
@@ -16,38 +17,33 @@ public class DriveForwardOpMode extends LinearOpMode {
     @Override
     public void runOpMode() {
         BrainSTEMRobot robot = new BrainSTEMRobot(hardwareMap, telemetry, this);
-        PedroDrive drive = new PedroDrive(robot.follower);
-        drive.setExternalLoop(true);
-        drive.settleEnd(false);
+        PathFollower pathFollower = robot.createPathFollower();
 
         telemetry.addLine("Drive forward " + DISTANCE_INCHES + " in (robot heading)");
+        telemetry.addLine("PathSpec + PathFollower");
         telemetry.update();
 
         waitForStart();
         if (isStopRequested()) return;
 
         robot.update();
-        Pose bakeStart = robot.follower.getPose();
-        drive.forwardDrive(DISTANCE_INCHES);
+        double[] bakeStart = robot.getFieldPose();
+        pathFollower.startPath(PathSpec.forward("drive-forward", bakeStart, DISTANCE_INCHES));
 
-        while (opModeIsActive() && drive.isBusy()) {
+        while (opModeIsActive() && !pathFollower.isFinished()) {
             robot.update();
-            drive.update();
+            double[] field = robot.getFieldPose();
+            FollowerOutput out = pathFollower.update(field[0], field[1], field[2]);
 
-            Pose pedro = robot.pinpoint.getPose();
-            Pose field = pedro.getAsCoordinateSystem(RoadRunnerCoordinates.INSTANCE);
-            telemetry.addData("bake start", "(%.1f, %.1f, %.0f°)",
-                    bakeStart.getX(), bakeStart.getY(), Math.toDegrees(bakeStart.getHeading()));
-            telemetry.addData("fieldX", "%.2f", field.getX());
-            telemetry.addData("fieldY", "%.2f", field.getY());
-            telemetry.addData("pedroX", "%.2f", pedro.getX());
-            telemetry.addData("pedroY", "%.2f", pedro.getY());
-            telemetry.addData("pathDone", "%.2f", robot.follower.getPathCompletion());
-            telemetry.addData("busy", robot.follower.isBusy());
+            telemetry.addData("bake start", FieldCoords.format(bakeStart));
+            telemetry.addData("field", FieldCoords.format(field));
+            telemetry.addData("pathDone", "%.2f", out.pathCompletion);
+            telemetry.addData("crossTrack", "%.2f", out.crossTrackError);
+            telemetry.addData("finished", pathFollower.isFinished());
             telemetry.update();
         }
 
-        robot.follower.breakFollowing();
+        pathFollower.cancel();
         sleep(500);
     }
 }

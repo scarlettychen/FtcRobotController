@@ -17,7 +17,6 @@ import java.util.List;
  */
 public class PedroDrive {
     private final Follower follower;
-    private boolean useTimeOptimal = true;
     private boolean holdEnd = true;
     private boolean settleEnd = false;
     private boolean externalLoop = false;
@@ -50,15 +49,6 @@ public class PedroDrive {
 
     public Follower getFollower() {
         return follower;
-    }
-
-    public PedroDrive useTimeOptimal(boolean useTimeOptimal) {
-        this.useTimeOptimal = useTimeOptimal;
-        return this;
-    }
-
-    public boolean isTimeOptimal() {
-        return useTimeOptimal;
     }
 
     public PedroDrive holdEnd(boolean holdEnd) {
@@ -373,21 +363,13 @@ public class PedroDrive {
         }
 
         PathChain chain = builder.build();
-        if (useTimeOptimal) {
-            follower.followPathChainTimeOptimal(chain, settleEnd);
-        } else {
-            follower.followPath(chain, holdEnd);
-        }
+        follower.followPath(chain, holdEnd);
     }
 
     private void follow(Path path) {
         PathChain chain = follower.pathBuilder()
                 .addPath(path)
                 .build();
-        if (useTimeOptimal) {
-            follower.followPathChainTimeOptimal(chain, settleEnd);
-        } else {
-            follower.followPath(chain, holdEnd);
-        }
+        follower.followPath(chain, holdEnd);
     }
 }

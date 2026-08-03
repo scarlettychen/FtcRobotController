@@ -1,8 +1,6 @@
 package org.firstinspires.ftc.teamcode.brainstem.auto;
 
 import com.bylazar.configurables.annotations.Configurable;
-import com.pedropathing.auto.PedroDrive;
-import com.pedropathing.geometry.Pose;
 import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.Scheduler;
 import com.pedropathing.ivy.groups.Groups;
@@ -11,26 +9,20 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 import org.firstinspires.ftc.teamcode.brainstem.BrainSTEMRobot;
 import org.firstinspires.ftc.teamcode.brainstem.FieldCoords;
-import org.firstinspires.ftc.teamcode.brainstem.RoadRunnerCoordinates;
+import org.firstinspires.ftc.teamcode.brainstem.follower.PathFollower;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.Limelight;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.Transfer;
 
 /**
  * Red line score. Poses are {@link FieldCoords}: 0° = into field from −Y wall (+Y), CCW+.
- * <p>
- * Start sits on the −Y wall facing into the field (0°), drives to goal,
- * then to the ball pile. Use {@code driveTo} (not {@code lineTo}) when the
- * heading in the pose array must be applied.
+ * Use {@code driveTo} (not {@code lineTo}) when the heading in the pose array must be applied.
  */
 @Configurable
 @Autonomous(name = "Red Line Score", group = "Auto")
 public class RedLineScoreAuto extends LinearOpMode {
 
-    // −Y wall, x≈−24; face into field (+Y = 0°)
     public static double[] START = FieldCoords.xyz(-24, -72 + 9, 0);
-    // score area; face +Y
     public static double[] GOAL = FieldCoords.xyz(-20, 20, 0);
-    // ball pile; face −Y for intake (180°). driveTo applies this heading.
     public static double[] BALLS = FieldCoords.xyz(-12, -12, 180);
     public static double STRAFE_LEFT_IN = 1.5;
 
@@ -40,10 +32,7 @@ public class RedLineScoreAuto extends LinearOpMode {
         robot.setAlliance(true);
         robot.setStartPose(START);
 
-        PedroDrive drive = new PedroDrive(robot.follower);
-        drive.setExternalLoop(true);
-        drive.settleEnd(false);
-        drive.useTimeOptimal(true);
+        PathFollower drive = robot.createPathFollower();
 
         robot.blocker.setDown();
         robot.transfer.setTransferState(Transfer.TransferState.OFF);
@@ -76,9 +65,7 @@ public class RedLineScoreAuto extends LinearOpMode {
 
         for (int i = 0; i < 10 && opModeInInit(); i++) {
             robot.update();
-            Pose field = robot.pinpoint.getPose()
-                    .getAsCoordinateSystem(RoadRunnerCoordinates.INSTANCE);
-            telemetry.addData("field now", FieldCoords.format(field));
+            telemetry.addData("field now", FieldCoords.format(robot.getFieldPose()));
             telemetry.update();
             sleep(50);
         }
@@ -96,8 +83,7 @@ public class RedLineScoreAuto extends LinearOpMode {
             robot.update();
             Scheduler.execute();
 
-            Pose field = robot.pinpoint.getPose()
-                    .getAsCoordinateSystem(RoadRunnerCoordinates.INSTANCE);
+            double[] field = robot.getFieldPose();
             telemetry.addData("field", FieldCoords.format(field));
             telemetry.addData("balls tgt", FieldCoords.format(BALLS));
             telemetry.addData("lift", "%s pos=%d atTarget=%s",
@@ -105,22 +91,11 @@ public class RedLineScoreAuto extends LinearOpMode {
             telemetry.addData("balls in robot", OpmodeCommands.getEstimatedBallsInRobot());
             robot.intakeGate.addTelemetry();
             telemetry.addData("busy", drive.isBusy());
-            com.pedropathing.trajectory.PredictiveTrajectoryFollower pred =
-                    robot.follower.getTrajectoryFollower();
-            if (pred != null) {
-                telemetry.addData("κ (1/in)", "%.4f", pred.getLastCurvature());
-                telemetry.addData("v_lat (in/s)", "%.1f", pred.getLastVelocityForLat());
-                telemetry.addData("a_lat raw/clamped", "%.1f / %.1f%s",
-                        pred.getLastALatUnclamped(),
-                        pred.getLastALatClamped(),
-                        pred.wasLastALatClamped() ? " CLAMP" : "");
-                telemetry.addData("lat power", "%.3f", pred.getLastLatPower());
-            }
             telemetry.update();
         }
 
         Scheduler.reset();
-        robot.follower.breakFollowing();
+        drive.cancel();
         robot.drive.setMotorPowers(0, 0, 0, 0);
     }
 }

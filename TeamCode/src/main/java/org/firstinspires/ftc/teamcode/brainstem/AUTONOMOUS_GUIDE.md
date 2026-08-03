@@ -3,15 +3,13 @@
 Everything your team normally edits is under this `brainstem` folder:
 
 - `RobotConfiguration.java` — motor names/directions, Pinpoint offsets, Pedro constants/model
-- `RobotModel.java` — physical/time-optimal tuning
+- `RobotModel.java` — **primary path tuning** (kS/kV/kA, mass, accel limits)
 - `BrainSTEMRobot.java` — hardware fields, Pinpoint ownership, pose sync, robot loop
 - `subsystems/` — subsystem implementations
-- `auto/RobotActions.java` — named poses + Pedro drive starts (imperative)
-- `auto/AutoCommands.java` — Ivy subsystem commands only
-- `auto/poses/` — field coordinates
-- `auto/*OpMode.java` — FTC lifecycle: start path → `drive.update()` until done
+- `follower/` — portable PathSpec / PathFollower (classic Pedro behind adapter)
+- `auto/*OpMode.java` — FTC lifecycle
 
-Pedro Pathing exposes drive only: `PedroDrive` (no Ivy). Ivy is TeamCode-only for mechanisms.
+Pedro Pathing follows paths with model feedforward + light PID correction. Ivy is TeamCode-only for mechanisms.
 
 ## 0. How pose / distance is measured
 
@@ -31,9 +29,8 @@ Edit `RobotConfiguration`:
 
 - `createMecanumConstants()` — motor names and directions
 - `createPinpointConstants()` — Pinpoint hardware name, pod offsets, encoder directions
-- `createFollowerConstants()` — Pedro follower settings (mostly relevant to classic following)
-- `createRobotModel()` — creates the team-owned time-optimal model
-- `configurePredictiveFollower()` — TeamCode feedback gains layered over model feedforward
+- `createFollowerConstants()` — leave alone (light correction only)
+- `createRobotModel()` — **tune here**: mass, limits, kS/kV/kA
 
 Edit `RobotModel` to tune:
 
@@ -45,8 +42,9 @@ Edit `RobotModel` to tune:
 - `kS`, `kV`, `kA`
 - CRUISE / LOADED / PRECISION velocity and acceleration scales
 
-Time-optimal following is enabled by default. Tune `RobotModel` first. Classic Pedro PID
-settings are primarily relevant when `drive.useTimeOptimal(false)` is selected.
+Path following uses classic Pedro with **dynamic velocity limits** from
+`VelocityConstraint` (curvature + RobotModel). See `docs/DYNAMIC_VELOCITY.md`.
+Do not retune Pedro PID for normal autos. Cruise power comes from `RobotModel.feedforwardPower`.
 
 ## 2. Add a subsystem
 
@@ -372,12 +370,14 @@ Compositions: `Groups.sequential`, `parallel`, `deadline`, or `ControlFlow.*`.
 
 Normally wrap these in `RobotActions`. They remain useful when creating a new named action:
 
-- `getFollower()`, `getPose()`, `isBusy()`, `update()`
-- `useTimeOptimal(boolean)` — default true
-- `holdEnd(boolean)` — classic follower only
+- `getFollower()`, `getPose()`, `isBusy()`, `update()`, `pathCompletion()`
+- `holdEnd(boolean)` — classic Pedro hold-at-end
 - `setExternalLoop(boolean)`
 - `setStartPose(x,y,headingDegrees)` / `setStartPose(double[])`
 - `lineDrive(...)`, `bezierDrive(...)`, `pathDrive(...)`, `turnTo(...)`
+
+Prefer `brainstem/follower/PathSpec` + `PathFollower` for all autos (via `OpmodeCommands`).
+UI planners should emit PathSpec JSON (`PathSpec.fromJson` / `toJson`).
 
 Paths are baked in command `initialize()`, not while the OpMode constructs the sequence. The
 start is the follower's current pose at that moment; destinations are absolute field positions.
@@ -388,7 +388,7 @@ start is the follower's current pose at that moment; destinations are absolute f
 - Always have correct motor names/directions and a working pose source.
 - Explicitly stop subsystem motors; one-shot commands do not auto-stop them.
 - Always cancel/stop and call `breakFollowing()` when an OpMode ends early.
-- Tune the TeamCode `RobotModel` before reaching for classic Pedro PID tuners while TO is on.
+- Tune `RobotModel` kS/kV/kA (used by `PedroFollowerAdapter`) before heavy classic PID retuning.
 - Match autos: call `tryCollect` / `tryScore` / `safeAlign` / `recoverLocalization`, not raw
   `retry`/`validate` trees. Keep recovery inside the failing action.
 - Use `robot.setStartPose(double[])` for absolute Pinpoint stamps (not repeated

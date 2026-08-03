@@ -1,13 +1,11 @@
 package org.firstinspires.ftc.teamcode.brainstem.auto;
 
-import com.pedropathing.auto.PedroDrive;
-import com.pedropathing.follower.Follower;
-import com.pedropathing.geometry.Pose;
 import com.pedropathing.ivy.Command;
-import com.pedropathing.ivy.behaviors.EndCondition;
 import com.pedropathing.ivy.commands.Commands;
 import com.pedropathing.ivy.groups.Groups;
-import org.firstinspires.ftc.teamcode.brainstem.RoadRunnerCoordinates;
+
+import org.firstinspires.ftc.teamcode.brainstem.follower.PathFollower;
+import org.firstinspires.ftc.teamcode.brainstem.follower.PathSpec;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.Blocker;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.FourBarLinkage;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.Intake;
@@ -174,146 +172,91 @@ public final class OpmodeCommands {
         }).requiring(intake, transfer);
     }
 
-    // go to {x, y, headingDeg} via pedro pathdrive
-    public static Command driveTo(PedroDrive drive, double[] fieldPose) {
-        final boolean[] ran = {false};
+    // ---- drive (PathFollower / PathSpec — no Pedro types) ----
+
+    /** Go to {x, y, headingDeg}; applies end heading (HOLD). */
+    public static Command driveTo(PathFollower drive, double[] fieldPose) {
         return Command.build()
-                .setStart(() -> {
-                    ran[0] = false;
-                    drive.pathDrive(fieldPose);
-                })
-                .setExecute(() -> {
-                    drive.update();
-                    ran[0] = true;
-                })
-                .setDone(() -> ran[0] && !drive.isBusy())
-                .setEnd(endCondition -> {
-                    if (drive.isBusy()) {
-                        drive.getFollower().breakFollowing();
-                    }
-                })
+                .setStart(() -> drive.startPath(PathSpec.lineTo(
+                        "driveTo", drive.getFieldPose(), fieldPose, PathSpec.HeadingMode.HOLD)))
+                .setExecute(drive::update)
+                .setDone(() -> !drive.isBusy())
+                .setEnd(end -> { if (drive.isBusy()) drive.cancel(); })
                 .requiring(drive);
     }
 
-    public static Command driveTo(PedroDrive drive, double x, double y, double headingDegrees) {
+    public static Command driveTo(PathFollower drive, double x, double y, double headingDegrees) {
         return driveTo(drive, new double[]{x, y, headingDegrees});
     }
 
-    // straight line to field x,y — holds start heading (rr/ftc field coords)
-    public static Command lineTo(PedroDrive drive, double[] fieldPose) {
-        final boolean[] ran = {false};
+    /** Straight line to field x,y — holds start heading. */
+    public static Command lineTo(PathFollower drive, double[] fieldPose) {
         return Command.build()
-                .setStart(() -> {
-                    ran[0] = false;
-                    drive.lineDrive(fieldPose);
-                })
-                .setExecute(() -> {
-                    drive.update();
-                    ran[0] = true;
-                })
-                .setDone(() -> ran[0] && !drive.isBusy())
-                .setEnd(endCondition -> {
-                    if (drive.isBusy()) {
-                        drive.getFollower().breakFollowing();
-                    }
-                })
+                .setStart(() -> drive.startPath(PathSpec.lineTo(
+                        "lineTo", drive.getFieldPose(), fieldPose, PathSpec.HeadingMode.HOLD_START)))
+                .setExecute(drive::update)
+                .setDone(() -> !drive.isBusy())
+                .setEnd(end -> { if (drive.isBusy()) drive.cancel(); })
                 .requiring(drive);
     }
 
-    public static Command lineTo(PedroDrive drive, double x, double y, double headingDegrees) {
+    public static Command lineTo(PathFollower drive, double x, double y, double headingDegrees) {
         return lineTo(drive, new double[]{x, y, headingDegrees});
     }
 
-    // robot-relative forward along live heading (inches)
-    public static Command driveForward(PedroDrive drive, double inches) {
-        final boolean[] ran = {false};
+    public static Command driveForward(PathFollower drive, double inches) {
         return Command.build()
-                .setStart(() -> {
-                    ran[0] = false;
-                    drive.forwardDrive(inches);
-                })
-                .setExecute(() -> {
-                    drive.update();
-                    ran[0] = true;
-                })
-                .setDone(() -> ran[0] && !drive.isBusy())
-                .setEnd(endCondition -> {
-                    if (drive.isBusy()) {
-                        drive.getFollower().breakFollowing();
-                    }
-                })
+                .setStart(() -> drive.startPath(PathSpec.forward("forward", drive.getFieldPose(), inches)))
+                .setExecute(drive::update)
+                .setDone(() -> !drive.isBusy())
+                .setEnd(end -> { if (drive.isBusy()) drive.cancel(); })
                 .requiring(drive);
     }
 
-    // robot-relative reverse (inches, positive = back)
-    public static Command driveBack(PedroDrive drive, double inches) {
+    public static Command driveBack(PathFollower drive, double inches) {
         return driveForward(drive, -Math.abs(inches));
     }
 
-    // robot-relative strafe (positive = left)
-    public static Command strafe(PedroDrive drive, double inches) {
-        final boolean[] ran = {false};
+    /** Robot-relative strafe (positive = left). */
+    public static Command strafe(PathFollower drive, double inches) {
         return Command.build()
-                .setStart(() -> {
-                    ran[0] = false;
-                    drive.strafeDrive(inches);
-                })
-                .setExecute(() -> {
-                    drive.update();
-                    ran[0] = true;
-                })
-                .setDone(() -> ran[0] && !drive.isBusy())
-                .setEnd(endCondition -> {
-                    if (drive.isBusy()) {
-                        drive.getFollower().breakFollowing();
-                    }
-                })
+                .setStart(() -> drive.startPath(PathSpec.strafe("strafe", drive.getFieldPose(), inches)))
+                .setExecute(drive::update)
+                .setDone(() -> !drive.isBusy())
+                .setEnd(end -> { if (drive.isBusy()) drive.cancel(); })
                 .requiring(drive);
     }
 
-    public static Command strafeLeft(PedroDrive drive, double inches) {
+    public static Command strafeLeft(PathFollower drive, double inches) {
         return strafe(drive, Math.abs(inches));
     }
 
-    public static Command strafeRight(PedroDrive drive, double inches) {
+    public static Command strafeRight(PathFollower drive, double inches) {
         return strafe(drive, -Math.abs(inches));
     }
 
-    // chase closest limelight ball w/ pid on tx + range (teleop drive, no path stuff)
     public static Command driveToClosestBall(
-            PedroDrive drive, Limelight limelight, boolean red) {
-        return driveToClosestBall(
-                drive, limelight, red, true, Limelight.MAX_CHASE_TIME_MS, null);
+            PathFollower drive, Limelight limelight, boolean red) {
+        return driveToClosestBall(drive, limelight, red, true, Limelight.MAX_CHASE_TIME_MS, null);
     }
 
     public static Command driveToClosestBall(
-            PedroDrive drive, Limelight limelight, boolean red, boolean finishOnLost) {
-        return driveToClosestBall(
-                drive, limelight, red, finishOnLost, Limelight.MAX_CHASE_TIME_MS, null);
+            PathFollower drive, Limelight limelight, boolean red, boolean finishOnLost) {
+        return driveToClosestBall(drive, limelight, red, finishOnLost, Limelight.MAX_CHASE_TIME_MS, null);
     }
 
     public static Command driveToClosestBall(
-            PedroDrive drive,
-            Limelight limelight,
-            boolean red,
-            boolean finishOnLost,
-            double maxChaseTimeMs) {
+            PathFollower drive, Limelight limelight, boolean red, boolean finishOnLost, double maxChaseTimeMs) {
         return driveToClosestBall(drive, limelight, red, finishOnLost, maxChaseTimeMs, null);
     }
 
-    /**
-     * PID chase to closest limelight ball.
-     * Ends on: reached ball, timeout, alliance out-of-bounds, or (optional) lost target.
-     * If {@code reachedBall} is non-null, set true only when aimed+close.
-     */
     public static Command driveToClosestBall(
-            PedroDrive drive,
+            PathFollower drive,
             Limelight limelight,
             boolean red,
             boolean finishOnLost,
             double maxChaseTimeMs,
             AtomicBoolean reachedBall) {
-        final Follower follower = drive.getFollower();
         final PIDController turnPid = new PIDController(0, 0, 0);
         final PIDController rangePid = new PIDController(0, 0, 0);
         final int[] lostFrames = {0};
@@ -322,137 +265,89 @@ public final class OpmodeCommands {
 
         return Command.build()
                 .setStart(() -> {
-                    follower.startTeleopDrive();
+                    drive.startManualDrive();
                     turnPid.reset();
                     rangePid.reset();
                     lostFrames[0] = 0;
                     done[0] = false;
                     startMs[0] = System.currentTimeMillis();
-                    if (reachedBall != null) {
-                        reachedBall.set(false);
-                    }
+                    if (reachedBall != null) reachedBall.set(false);
                 })
                 .setExecute(() -> {
-                    if (done[0]) {
-                        return;
-                    }
-
+                    if (done[0]) return;
                     if (System.currentTimeMillis() - startMs[0] >= maxChaseTimeMs) {
-                        follower.setTeleOpDrive(0, 0, 0, true);
-                        follower.update();
+                        drive.setManualDrive(0, 0, 0);
+                        drive.update();
                         done[0] = true;
                         return;
                     }
-
-                    Pose field = drive.getPose().getAsCoordinateSystem(RoadRunnerCoordinates.INSTANCE);
-                    if (Limelight.isOutOfBounds(field.getX(), field.getY(), red)) {
-                        follower.setTeleOpDrive(0, 0, 0, true);
-                        follower.update();
+                    double[] field = drive.getFieldPose();
+                    if (Limelight.isOutOfBounds(field[0], field[1], red)) {
+                        drive.setManualDrive(0, 0, 0);
+                        drive.update();
                         done[0] = true;
                         return;
                     }
-
                     limelight.update();
-                    turnPid.setGains(
-                            Limelight.CHASE_KP_TX, Limelight.CHASE_KI_TX, Limelight.CHASE_KD_TX);
-                    rangePid.setGains(
-                            Limelight.CHASE_KP_RANGE,
-                            Limelight.CHASE_KI_RANGE,
-                            Limelight.CHASE_KD_RANGE);
+                    turnPid.setGains(Limelight.CHASE_KP_TX, Limelight.CHASE_KI_TX, Limelight.CHASE_KD_TX);
+                    rangePid.setGains(Limelight.CHASE_KP_RANGE, Limelight.CHASE_KI_RANGE, Limelight.CHASE_KD_RANGE);
                     turnPid.setOutputLimit(Limelight.CHASE_MAX_TURN);
                     rangePid.setOutputLimit(Limelight.CHASE_MAX_FORWARD);
-
                     Limelight.BallDetection ball = limelight.getClosestBall();
                     if (ball == null) {
                         lostFrames[0]++;
-                        follower.setTeleOpDrive(0, 0, 0, true);
-                        follower.update();
-                        if (finishOnLost && lostFrames[0] >= Limelight.CHASE_LOST_FRAMES) {
-                            done[0] = true;
-                        }
+                        drive.setManualDrive(0, 0, 0);
+                        drive.update();
+                        if (finishOnLost && lostFrames[0] >= Limelight.CHASE_LOST_FRAMES) done[0] = true;
                         return;
                     }
                     lostFrames[0] = 0;
-
                     double range = limelight.estimateRangeInches(ball.tyDeg);
-                    // +tx = ball right → turn right (neg in tele stick land)
                     double turn = -turnPid.calculate(ball.txDeg, 0.0);
                     double forward = 0.0;
                     if (!Double.isNaN(range)) {
-                        // range - stop > 0 means we still gotta go
-                        forward = rangePid.calculate(
-                                Limelight.CHASE_STOP_RANGE_IN, range);
-                        if (forward < 0) {
-                            forward = 0;
-                        }
+                        forward = rangePid.calculate(Limelight.CHASE_STOP_RANGE_IN, range);
+                        if (forward < 0) forward = 0;
                     }
-
-                    follower.setTeleOpDrive(forward, 0, turn, true);
-                    follower.update();
-
+                    drive.setManualDrive(forward, 0, turn);
+                    drive.update();
                     boolean aimed = Math.abs(ball.txDeg) <= Limelight.CHASE_TX_TOL_DEG;
                     boolean close = !Double.isNaN(range) && range <= Limelight.CHASE_STOP_RANGE_IN;
                     if (aimed && close) {
-                        if (reachedBall != null) {
-                            reachedBall.set(true);
-                        }
+                        if (reachedBall != null) reachedBall.set(true);
                         done[0] = true;
                     }
                 })
                 .setDone(() -> done[0])
-                .setEnd(endCondition -> {
-                    follower.setTeleOpDrive(0, 0, 0, true);
-                    follower.update();
+                .setEnd(end -> {
+                    drive.setManualDrive(0, 0, 0);
+                    drive.update();
+                    drive.cancel();
                 })
                 .requiring(drive, limelight);
     }
 
-    // chase + beam-break count, then back off for clearance (not a substitute for collecting)
     public static Command collectBallsThenBackOff(
-            PedroDrive drive,
-            Limelight limelight,
-            Intake intake,
-            Transfer transfer,
-            IntakeBeamBreak intakeGate,
-            boolean red) {
+            PathFollower drive, Limelight limelight, Intake intake, Transfer transfer,
+            IntakeBeamBreak intakeGate, boolean red) {
         return collectBallsThenBackOff(
-                drive,
-                limelight,
-                intake,
-                transfer,
-                intakeGate,
-                red,
-                Limelight.COLLECT_COUNT,
-                Limelight.COLLECT_BACK_OFF_IN,
+                drive, limelight, intake, transfer, intakeGate, red,
+                Limelight.COLLECT_COUNT, Limelight.COLLECT_BACK_OFF_IN,
                 Limelight.MAX_CHASE_TIME_MS / 1000.0);
     }
 
     public static Command collectBallsThenBackOff(
-            PedroDrive drive,
-            Limelight limelight,
-            Intake intake,
-            Transfer transfer,
-            IntakeBeamBreak intakeGate,
-            boolean red,
-            int ballCount,
-            double backInches,
+            PathFollower drive, Limelight limelight, Intake intake, Transfer transfer,
+            IntakeBeamBreak intakeGate, boolean red, int ballCount, double backInches,
             double timeoutSeconds) {
         return Groups.sequential(
-                smartCollect(
-                        drive, limelight, intake, transfer, intakeGate,
-                        ballCount, timeoutSeconds),
-                // Don't hang forever if Pedro back-off never finishes
-                Groups.race(
-                        driveBack(drive, backInches),
-                        Commands.waitMs(2500)
-                )
+                smartCollect(drive, limelight, intake, transfer, intakeGate, ballCount, timeoutSeconds),
+                Groups.race(driveBack(drive, backInches), Commands.waitMs(2500))
         );
     }
 
     public static Command huntAndVerifyBall(
-            PedroDrive drive, Limelight limelight, int[] possessedBalls) {
-
-        final Follower follower = drive.getFollower();
+            PathFollower drive, Limelight limelight, int[] possessedBalls) {
         final PIDController turnPid = new PIDController(0, 0, 0);
         final PIDController rangePid = new PIDController(0, 0, 0);
         final int[] lostFrames = {0};
@@ -461,7 +356,7 @@ public final class OpmodeCommands {
 
         return Command.build()
                 .setStart(() -> {
-                    follower.startTeleopDrive();
+                    drive.startManualDrive();
                     turnPid.reset();
                     rangePid.reset();
                     lostFrames[0] = 0;
@@ -474,78 +369,47 @@ public final class OpmodeCommands {
                     rangePid.setGains(Limelight.CHASE_KP_RANGE, Limelight.CHASE_KI_RANGE, Limelight.CHASE_KD_RANGE);
                     turnPid.setOutputLimit(Limelight.CHASE_MAX_TURN);
                     rangePid.setOutputLimit(Limelight.CHASE_MAX_FORWARD);
-
                     Limelight.BallDetection ball = limelight.getClosestBall();
-
-                    // If we don't see a ball...
                     if (ball == null) {
                         lostFrames[0]++;
-                        follower.setTeleOpDrive(0, 0, 0, true);
-                        follower.update();
-
-                        // INFERENCE: If we lost it, but we were right on top of it a split second ago, it went in!
+                        drive.setManualDrive(0, 0, 0);
+                        drive.update();
                         if (wasInStrikeZone[0]) {
                             possessedBalls[0]++;
                             done[0] = true;
                             return;
                         }
-
-                        // Otherwise, we just lost tracking. Abort after too many lost frames.
-                        if (lostFrames[0] >= Limelight.CHASE_LOST_FRAMES) {
-                            done[0] = true;
-                        }
+                        if (lostFrames[0] >= Limelight.CHASE_LOST_FRAMES) done[0] = true;
                         return;
                     }
-
                     lostFrames[0] = 0;
-
                     double range = limelight.estimateRangeInches(ball.tyDeg);
-
-                    // Are we in the Strike Zone?
                     boolean aimed = Math.abs(ball.txDeg) <= Limelight.CHASE_TX_TOL_DEG;
-                    boolean close = !Double.isNaN(range) && range <= (Limelight.CHASE_STOP_RANGE_IN + 2.0); // Added slight buffer
-
-                    // Save this state for the NEXT frame, in case it disappears under the bumper
-                    wasInStrikeZone[0] = (aimed && close);
-
-                    // Drive math
+                    boolean close = !Double.isNaN(range) && range <= (Limelight.CHASE_STOP_RANGE_IN + 2.0);
+                    wasInStrikeZone[0] = aimed && close;
                     double turn = -turnPid.calculate(ball.txDeg, 0.0);
                     double forward = 0.0;
                     if (!Double.isNaN(range)) {
                         forward = rangePid.calculate(Limelight.CHASE_STOP_RANGE_IN, range);
                         if (forward < 0) forward = 0;
                     }
-
-                    follower.setTeleOpDrive(forward, 0, turn, true);
-                    follower.update();
+                    drive.setManualDrive(forward, 0, turn);
+                    drive.update();
                 })
                 .setDone(() -> done[0])
-                .setEnd(endCondition -> {
-                    follower.setTeleOpDrive(0, 0, 0, true);
-                    follower.update();
+                .setEnd(end -> {
+                    drive.setManualDrive(0, 0, 0);
+                    drive.update();
+                    drive.cancel();
                 })
                 .requiring(drive, limelight);
     }
 
-    /**
-     * Limelight chase + intake; ball count from dual beam breaks at the intake gate
-     * (not limelight heuristics). Stops at {@code targetCount} or timeout.
-     * Lost limelight does <b>not</b> abort — keeps intake running and creeps forward
-     * so balls under the intake still trip the gate (old path backed off instead).
-     */
     public static Command smartCollect(
-            PedroDrive drive,
-            Limelight limelight,
-            Intake intake,
-            Transfer transfer,
-            IntakeBeamBreak intakeGate,
-            int targetCount,
-            double timeoutSeconds
-    ) {
-        final Follower follower = drive.getFollower();
+            PathFollower drive, Limelight limelight, Intake intake, Transfer transfer,
+            IntakeBeamBreak intakeGate, int targetCount, double timeoutSeconds) {
         final PIDController turnPid = new PIDController(0, 0, 0);
         final PIDController rangePid = new PIDController(0, 0, 0);
-
         final long[] startMs = {0};
         final boolean[] finished = {false};
         final double[] lastForward = {0.15};
@@ -553,7 +417,7 @@ public final class OpmodeCommands {
 
         Command chase = Command.build()
                 .setStart(() -> {
-                    follower.startTeleopDrive();
+                    drive.startManualDrive();
                     turnPid.reset();
                     rangePid.reset();
                     intakeGate.resetCount();
@@ -561,56 +425,42 @@ public final class OpmodeCommands {
                     startMs[0] = System.currentTimeMillis();
                     finished[0] = false;
                     lastForward[0] = 0.15;
-
                     intake.setIntakeState(Intake.IntakeState.IN);
                     transfer.setTransferState(Transfer.TransferState.IN);
                 })
                 .setExecute(() -> {
-                    if (finished[0]) {
-                        return;
-                    }
+                    if (finished[0]) return;
                     syncBallCount(intakeGate);
                     long elapsed = System.currentTimeMillis() - startMs[0];
                     if (intakeGate.getBallCount() >= targetCount || elapsed >= timeoutMs) {
                         finished[0] = true;
-                        follower.setTeleOpDrive(0, 0, 0, true);
-                        follower.update();
+                        drive.setManualDrive(0, 0, 0);
+                        drive.update();
                         return;
                     }
-
                     limelight.update();
                     Limelight.BallDetection ball = limelight.getClosestBall();
-
-                    // No vision: keep creeping / last forward so intake can still eat
                     if (ball == null) {
                         double creep = Math.max(0.15, Math.min(0.30, lastForward[0]));
-                        follower.setTeleOpDrive(creep, 0, 0, true);
-                        follower.update();
+                        drive.setManualDrive(creep, 0, 0);
+                        drive.update();
                         return;
                     }
-
                     double currentRange = limelight.estimateRangeInches(ball.tyDeg);
                     double tx = ball.txDeg - Limelight.CHASE_TX_OFFSET_DEG;
-
                     turnPid.setGains(Limelight.CHASE_KP_TX, Limelight.CHASE_KI_TX, Limelight.CHASE_KD_TX);
                     rangePid.setGains(Limelight.CHASE_KP_RANGE, Limelight.CHASE_KI_RANGE, Limelight.CHASE_KD_RANGE);
                     turnPid.setOutputLimit(Limelight.CHASE_MAX_TURN);
                     rangePid.setOutputLimit(Limelight.CHASE_MAX_FORWARD);
-
-                    // calculate(current, target): pass stop as current, range as target → +fwd when far
                     double forward = 0.0;
                     if (!Double.isNaN(currentRange)) {
                         forward = rangePid.calculate(Limelight.CHASE_STOP_RANGE_IN, currentRange);
                         if (forward < 0) forward = 0;
                     }
-
-                    boolean near = !Double.isNaN(currentRange)
-                            && currentRange <= Limelight.CHASE_STRAFE_RANGE_IN;
+                    boolean near = !Double.isNaN(currentRange) && currentRange <= Limelight.CHASE_STRAFE_RANGE_IN;
                     double turn;
                     double strafe = 0.0;
                     if (near) {
-                        // Center with strafe; soft turn — spinning here knocks the ball.
-                        // Pedro +lateral = left; +tx = ball right → negative lateral.
                         strafe = Math.max(-Limelight.CHASE_MAX_STRAFE,
                                 Math.min(Limelight.CHASE_MAX_STRAFE, -Limelight.CHASE_KP_STRAFE * tx));
                         turn = -turnPid.calculate(tx, 0.0) * Limelight.CHASE_NEAR_TURN_SCALE;
@@ -621,27 +471,23 @@ public final class OpmodeCommands {
                             forward = Math.max(forward, Limelight.CHASE_MIN_FORWARD * 0.7);
                         }
                     }
-
                     lastForward[0] = forward;
-                    follower.setTeleOpDrive(forward, strafe, turn, true);
-                    follower.update();
+                    drive.setManualDrive(forward, strafe, turn);
+                    drive.update();
                 })
-                // Wall-clock in done() so Sequential/Scheduler always see timeout even if
-                // execute early-returned without setting finished.
                 .setDone(() -> finished[0]
-                        || (startMs[0] != 0
-                        && System.currentTimeMillis() - startMs[0] >= timeoutMs))
-                .setEnd(endCondition -> {
+                        || (startMs[0] != 0 && System.currentTimeMillis() - startMs[0] >= timeoutMs))
+                .setEnd(end -> {
                     finished[0] = true;
                     syncBallCount(intakeGate);
-                    follower.setTeleOpDrive(0, 0, 0, true);
-                    follower.update();
+                    drive.setManualDrive(0, 0, 0);
+                    drive.update();
+                    drive.cancel();
                     intake.setIntakeState(Intake.IntakeState.OFF);
                     transfer.setTransferState(Transfer.TransferState.OFF);
                 })
                 .requiring(drive, limelight, intake, transfer, intakeGate);
 
-        // Hard deadline — waitMs uses the same System.currentTimeMillis clock
         return Groups.race(chase, Commands.waitMs(timeoutMs));
     }
 
@@ -688,7 +534,7 @@ public final class OpmodeCommands {
 
     // wait til blocker is over the goal box then yeet it open
     public static Command openBlockerWhenOverGoal(
-            PedroDrive drive,
+            PathFollower drive,
             Blocker blocker,
             double goalX,
             double goalY,
@@ -696,15 +542,15 @@ public final class OpmodeCommands {
             double halfHeight
     ) {
         return Groups.sequential(
-                Commands.waitUntil(() -> blocker.isOverRegion(
-                        drive.getPose(), goalX, goalY, halfWidth, halfHeight)),
+                Commands.waitUntil(() -> blocker.isOverRegionField(
+                        drive.getFieldPose(), goalX, goalY, halfWidth, halfHeight)),
                 openBlocker(blocker)
         ).requiring(blocker);
     }
 
     // drive + raise at the same time, open blocker only when its over the goal
     public static Command driveRaiseAndScore(
-            PedroDrive drive,
+            PathFollower drive,
             Intake intake,
             Transfer transfer,
             FourBarLinkage lift,
@@ -726,7 +572,7 @@ public final class OpmodeCommands {
     }
 
     public static Command driveRaiseAndScoreHigh(
-            PedroDrive drive,
+            PathFollower drive,
             Intake intake,
             Transfer transfer,
             FourBarLinkage lift,
@@ -744,7 +590,7 @@ public final class OpmodeCommands {
     }
 
     public static Command driveRaiseAndScoreLow(
-            PedroDrive drive,
+            PathFollower drive,
             Intake intake,
             Transfer transfer,
             FourBarLinkage lift,

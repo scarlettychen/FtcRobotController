@@ -1,24 +1,35 @@
 package org.firstinspires.ftc.teamcode.brainstem;
 
-import com.pedropathing.follower.Follower;
+import com.pedropathing.control.FilteredPIDFCoefficients;
+import com.pedropathing.control.PIDFCoefficients;
 import com.pedropathing.follower.FollowerConstants;
 import com.pedropathing.ftc.drivetrains.MecanumConstants;
 import com.pedropathing.ftc.localization.constants.PinpointConstants;
-import com.pedropathing.trajectory.PredictiveTrajectoryFollower;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
-// pedro hardware + motion knobs. edit this first for motor names / directions
+/**
+ * Hardware names + leave-alone Pedro correction. Path cruise is tuned in {@link RobotModel}
+ * (kS/kV/kA, mass, accel limits) — do not retune these PID gains for normal autos.
+ */
 public class RobotConfiguration {
 
+    /**
+     * Light correction-only gains. Model feedforward owns drive power when
+     * {@code follower.setMotionModel(...)} is set (always, via PedroGuide).
+     */
     public FollowerConstants createFollowerConstants() {
-        return new FollowerConstants();
+        return new FollowerConstants()
+                .mass(12.0)
+                .centripetalScaling(0.0)
+                .translationalPIDFCoefficients(new PIDFCoefficients(0.12, 0, 0.01, 0))
+                .headingPIDFCoefficients(new PIDFCoefficients(1.0, 0, 0, 0))
+                .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.008, 0, 0, 0.6, 0));
     }
 
     public MecanumConstants createMecanumConstants() {
-        // directions match how we wired this bot
         return new MecanumConstants()
                 .leftFrontMotorName("FL")
                 .leftRearMotorName("BL")
@@ -30,8 +41,6 @@ public class RobotConfiguration {
                 .rightRearMotorDirection(DcMotorSimple.Direction.REVERSE);
     }
 
-    // pinpoint settings. hwmap name gotta match the rc config
-    // offsets are mm from center (decode bot)
     public PinpointConstants createPinpointConstants() {
         return new PinpointConstants()
                 .hardwareMapName("odo")
@@ -43,6 +52,7 @@ public class RobotConfiguration {
                 .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED);
     }
 
+    /** Primary tuning surface for path following. */
     public RobotModel createRobotModel() {
         return new RobotModel()
                 .mass(12.0)
@@ -55,16 +65,5 @@ public class RobotConfiguration {
                 .maxAngularVelocity(6.0)
                 .maxAngularAcceleration(20.0)
                 .feedforward(0.05, 0.18, 0.003);
-    }
-
-    public void configurePredictiveFollower(Follower follower) {
-        PredictiveTrajectoryFollower predictive = follower.getTrajectoryFollower();
-        predictive.setGains(0.15, 0.015, 0.0, 0.8, 0.05);
-        predictive.kVOmega = 0.12;
-        predictive.kAAlpha = 0.02;
-        predictive.endCrossTrackBoost = 1.75;
-        predictive.crossMinPower = 0.0;
-        predictive.closestAheadInches = 3.0;
-        predictive.settleHoldSeconds = 0.2;
     }
 }

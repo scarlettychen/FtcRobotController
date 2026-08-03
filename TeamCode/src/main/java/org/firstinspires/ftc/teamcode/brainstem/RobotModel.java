@@ -2,8 +2,8 @@ package org.firstinspires.ftc.teamcode.brainstem;
 
 import com.pedropathing.model.MotionModel;
 
-// drivetrain physics + motion tuning for our bot
-// edit for ur robot. inches/sec/rad/kg/volts. pedro just wants MotionModel
+// drivetrain physics — PRIMARY path-following tuning (kS/kV/kA, mass, accel limits).
+// Pedro PID in RobotConfiguration is correction-only; leave it alone for normal autos.
 public class RobotModel implements MotionModel {
     public double mass = 12.0;
     public double wheelRadius = 1.8898;
@@ -23,6 +23,13 @@ public class RobotModel implements MotionModel {
     public double kV = 0.012;
     public double kA = 0.002;
     public double motorEfficiency = 0.85;
+
+    /**
+     * Per-tick path velocity ceiling (in/s) set by PathFollower adapter from
+     * {@link org.firstinspires.ftc.teamcode.brainstem.follower.VelocityConstraint}.
+     * Not a tunable constant — transient. {@link Double#POSITIVE_INFINITY} = no extra cap.
+     */
+    private double pathVelocityCeiling = Double.POSITIVE_INFINITY;
 
     public enum MotionMode {
         CRUISE(1.0, 1.0),
@@ -49,6 +56,31 @@ public class RobotModel implements MotionModel {
         maxLateralAcceleration = frictionCoefficient * gravity;
     }
 
+    /**
+     * Read-only view of motion limits — single source of truth is this model’s fields.
+     * Does not copy values; always reflects live state.
+     */
+    public MotionConstraints constraints() {
+        return new MotionConstraints(this);
+    }
+
+    /** Called by PathFollower adapters each tick; not for manual tuning. */
+    public void setPathVelocityCeiling(double inchesPerSecond) {
+        if (Double.isNaN(inchesPerSecond) || inchesPerSecond <= 0) {
+            pathVelocityCeiling = Double.POSITIVE_INFINITY;
+        } else {
+            pathVelocityCeiling = inchesPerSecond;
+        }
+    }
+
+    public void clearPathVelocityCeiling() {
+        pathVelocityCeiling = Double.POSITIVE_INFINITY;
+    }
+
+    public double getPathVelocityCeiling() {
+        return pathVelocityCeiling;
+    }
+
     @Override
     public void cruise() {
         motionMode = MotionMode.CRUISE;
@@ -69,8 +101,8 @@ public class RobotModel implements MotionModel {
         return motionMode.velocityScale * confidence;
     }
 
-    @Override
-    public double motorLimitedVelocity() {
+    /** Robot capability without the transient path ceiling (for VelocityConstraint). */
+    public double motorLimitedVelocityIgnoringPathCeiling() {
         double base;
         if (maxVelocityOverride > 0) {
             base = maxVelocityOverride;
@@ -80,6 +112,11 @@ public class RobotModel implements MotionModel {
             base = velocityAtNominal * (batteryVoltage / Math.max(nominalVoltage, 1e-3));
         }
         return base * contextScale();
+    }
+
+    @Override
+    public double motorLimitedVelocity() {
+        return Math.min(motorLimitedVelocityIgnoringPathCeiling(), pathVelocityCeiling);
     }
 
     @Override
@@ -185,5 +222,41 @@ public class RobotModel implements MotionModel {
 
     private static double clamp(double value, double low, double high) {
         return Math.max(low, Math.min(high, value));
+    }
+
+    /**
+     * Live view of motion limits. Values are read from the owning {@link RobotModel}
+     * — do not store a parallel copy of limits elsewhere.
+     */
+    public static final class MotionConstraints {
+        private final RobotModel model;
+
+        MotionConstraints(RobotModel model) {
+            this.model = model;
+        }
+
+        public double maxVelocity() {
+            return model.motorLimitedVelocityIgnoringPathCeiling();
+        }
+
+        public double maxAcceleration() {
+            return model.profileMaxAcceleration();
+        }
+
+        public double maxDeceleration() {
+            return model.profileMaxDeceleration();
+        }
+
+        public double frictionCoefficient() {
+            return model.frictionCoefficient;
+        }
+
+        public double maxLateralAcceleration() {
+            return model.getMaxLateralAcceleration();
+        }
+
+        public RobotModel.MotionMode motionMode() {
+            return model.motionMode;
+        }
     }
 }

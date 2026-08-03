@@ -1,10 +1,7 @@
 package org.firstinspires.ftc.teamcode.brainstem.auto.poses;
 
-import com.pedropathing.auto.PedroDrive;
-import com.pedropathing.geometry.Pose;
-
 // alliance field coords as {x, y, headingDeg} — see FieldCoords
-// 0° = +Y (into field from −Y wall); increases CCW; blue close poses use −Y
+// 0° = +Y (into field from −Y wall); increases CCW
 public abstract class AlliancePoses {
 
     public double[] start = xyz(0, 0, 0);
@@ -13,11 +10,7 @@ public abstract class AlliancePoses {
         return org.firstinspires.ftc.teamcode.brainstem.FieldCoords.xyz(x, y, headingDegrees);
     }
 
-    public static Pose toPose(double[] p) {
-        return PedroDrive.fieldPose(p);
-    }
-
-    public Pose startPose() {
-        return toPose(start);
+    public double[] startPose() {
+        return start;
     }
 }
